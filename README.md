@@ -26,6 +26,16 @@ phone app stays logged in. The UI and docs are in German; the code and comments 
   Batterie-Plan (tagsüber laden, nachts kontrolliert abgeben). Trockenlauf zum Ausprobieren.
 - Abgeleitete Werte: Abgabe ins Hausnetz, Lade-Effizienz, „Ausgang gespeist aus Akku/PV/Netz“.
 
+## Screenshots
+
+**Telemetrie** – Leistungen, Batterie-SOC mit Schwellen, Erträge, Lade-Effizienz:
+
+![Telemetrie-Seite der Web-UI](docs/img/telemetry.png)
+
+**Regler & Parameter** – Nulleinspeisung, Batterie-Plan-Parameter, Vorschau und die `.env` (einklappbar, schreibgeschützt):
+
+![Seite „Regler & Parameter“ der Web-UI](docs/img/control.png)
+
 ## Voraussetzungen
 
 - Docker (Compose) auf einem Rechner im selben LAN wie der Wechselrichter, ein MQTT-Broker (z. B. Mosquitto/Home
