@@ -1,0 +1,23 @@
+# Secrets and local configuration - never commit
+.env
+*.env
+!.env.example
+.sunshare_credentials.json
+
+# Runtime data (energy counters, history database, controller settings)
+data/*
+!data/.gitkeep
+
+# Python / tooling
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+
+# Build artifacts and local captures
+*.zip
+sunshare-raw-*.json
+.claude/
+.DS_Store

@@ -1,0 +1,14 @@
+services:
+  sunshare-bridge:
+    build: .
+    container_name: sunshare-bridge
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - TZ=${TZ:-Europe/Berlin}  # midnight reset of the PV "today" counter
+    ports:
+      - "80:80"       # LAN mode: the router's NAT rule must reach this port - see README
+      - "8099:8099"   # web UI - NO authentication, trusted LAN only (or "127.0.0.1:8099:8099" behind a proxy)
+    volumes:
+      - ./data:/data  # energy counters, history database, controller settings

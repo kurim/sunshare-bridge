@@ -1,0 +1,204 @@
+# Sunshare Bridge
+
+Live-Daten, Verlauf und Nulleinspeisung für **Sunshare-Mikro-Wechselrichter mit Batterie** (iShareCloud-App,
+`com.sunshare.cloud`) – als Docker-Container mit Web-UI und MQTT/Home-Assistant-Anbindung.
+
+> **Inoffizielles Projekt.** Nicht mit Sunshare/Sunsharetek verbunden. Es nutzt Schnittstellen, die per Reverse
+> Engineering am **eigenen Gerät** ermittelt wurden und sich jederzeit ändern können. Nutzung auf eigene
+> Verantwortung, ohne Gewähr – der Regler schreibt Werte an dein Gerät. Siehe [Sicherheit](#sicherheit).
+
+**In English (short):** A self-hosted bridge for Sunshare micro-inverters with battery. It reads live data either from
+the cloud API or by transparently proxying the inverter's plain-HTTP telemetry push on your LAN, publishes it to MQTT
+with Home Assistant discovery, keeps a long-term history (SQLite), offers a web UI (telemetry, power-flow charts, raw
+log, controller/parameters) and an optional zero-feed-in controller. Use a dedicated *invited user* account so your
+phone app stays logged in. The UI and docs are in German; the code and comments are in English.
+
+## Funktionen
+
+- **Live-Telemetrie** aus zwei Quellen (`DATA_SOURCE`): **`lan`** – das Gerät pusht alle ~3 s Klartext-HTTP an
+  Sunshare, ein NAT-Eintrag im Router leitet das über die Bridge (die alles unverändert weiterreicht), oder
+  **`cloud`** – Abfrage der (AES-verschlüsselten) Cloud-API.
+- **MQTT + Home-Assistant-Discovery**: Sensoren erscheinen automatisch, inkl. Energiezähler fürs Energy-Dashboard.
+- **Web-UI** (Port 8099): Telemetrie & Erträge · Leistungsfluss-Charts (Live und bis 30 Tage) · Roh-Log der
+  Geräte-Pushes · Regler & Batterie-Plan.
+- **Langzeit-Verlauf**: ein Mittelwert pro Minute in SQLite, Aufbewahrung einstellbar.
+- **Nulleinspeisung** (optional, standardmäßig aus): führt die Ausgangsleistung anhand eines Netzzählers nach, mit
+  Batterie-Plan (tagsüber laden, nachts kontrolliert abgeben). Trockenlauf zum Ausprobieren.
+- Abgeleitete Werte: Abgabe ins Hausnetz, Lade-Effizienz, „Ausgang gespeist aus Akku/PV/Netz“.
+
+## Voraussetzungen
+
+- Docker (Compose) auf einem Rechner im selben LAN wie der Wechselrichter, ein MQTT-Broker (z. B. Mosquitto/Home
+  Assistant).
+- Für `DATA_SOURCE=lan`: ein Router, der Ziel-NAT pro Quell-IP kann (Anleitung für UniFi unten). Ohne Router-Eingriff
+  geht `DATA_SOURCE=cloud`.
+- Für den Regler: ein Netzzähler, der per MQTT veröffentlicht wird (positiv = Bezug).
+
+## Schnellstart
+
+### 1. Account: eingeladenen Nutzer verwenden
+
+Sunshare erlaubt **eine aktive Session pro Account**. Melde die Bridge deshalb **nicht mit deinem Haupt-Account** an,
+sondern lege einen **zweiten Account** an und **lade ihn in der iShareCloud-App zu deinem Gerät ein**. Ein
+eingeladener Nutzer-Account reicht der Bridge aus – die Handy-App mit dem Hauptaccount bleibt eingeloggt. (Mit dem
+Haupt-Account würden sich Bridge und App gegenseitig rauswerfen.)
+
+### 2. Gerät finden
+
+```bash
+cp .env.example .env
+# SUNSHARE_USER_ACCOUNT / SUNSHARE_PASSWORD in .env eintragen (der eingeladene Account), dann:
+python3 scripts/sunshare_login.py devices       # zeigt "id" und "sn" deines Geräts
+```
+
+Trag `id` als `SUNSHARE_DEVICE_ID` und `sn` als `SUNSHARE_DEVICE_SN` in die `.env` ein, dazu `MQTT_HOST` (und ggf.
+Benutzer/Passwort). Alle Optionen stehen kommentiert in [`.env.example`](.env.example).
+
+### 3. Starten
+
+```bash
+docker compose up -d --build
+```
+
+Web-UI: `http://<docker-host>:8099`. In Home Assistant erscheint unter MQTT das Gerät **„Sunshare Inverter“**.
+
+### 4. Datenquelle wählen
+
+- **`cloud`** (`DATA_SOURCE=cloud`): funktioniert sofort, die Bridge fragt die Cloud alle 2 s ab.
+- **`lan`** (Default): braucht die [NAT-Regel](#unifi-nat-regel-für-lan-modus). Vorteil: die Werte kommen direkt vom
+  Gerät, ohne Cloud-Abfrage.
+
+In beiden Fällen läuft ein Keepalive (`openRealTime`) gegen die Cloud – ohne ihn pusht das Gerät keine Live-Daten.
+
+## Web-UI
+
+| Seite | Inhalt |
+|---|---|
+| **Telemetrie** `/` | Leistungen, Batterie-SOC mit Schwellen, Erträge, Lade-Effizienz, „Ausgang gespeist aus …“ |
+| **Leistungsfluss** `/flow` | PV, Wechselrichter, Akku, Steckdose, Abgabe ins Hausnetz, Netzzähler, SOC. Live (~30 min) oder aus dem Verlauf (6 h · 24 h · 7 T · 30 T) |
+| **Raw** `/raw` | Jeder Push des Geräts an `realTimeElectricFlow` unverändert samt Antwort des Servers; Feldübersicht, Filter, JSON-Download. Nur im Speicher (`RAW_LOG_SIZE`) |
+| **Regler & Parameter** `/control` | Nulleinspeisung ein/aus/Trockenlauf, Batterie-Plan-Parameter (einstellbar, in `data/control.json` gespeichert), `.env` schreibgeschützt mit maskierten Passwörtern |
+
+## Home Assistant
+
+Nach dem Start werden per Discovery Sensoren angelegt (Auszug):
+
+- Leistungen (W): `PV Power`, `PV1/PV2 Power`, `Inverter Output Power`, `Battery Power`,
+  `Battery Charge/Discharge Power`, `Load Power`, `Off-Grid Socket Power`, `Feed-in to House Grid (derived)`,
+  `Grid Power`; `Battery SOC` (%).
+- **„Real“-Werte** (ungefilterte Rohwerte des Geräts): `PV Power (real)`, `Battery Power (real)`,
+  `Inverter Output Power (real)`. `PV Power` liegt bei Schwachlicht unter der echten PV-Leistung (im Test ~15 %);
+  siehe [`docs/DEVICE_NOTES.md`](docs/DEVICE_NOTES.md).
+- Energie (kWh, `total_increasing`): `PV Energy Today/Lifetime` (vom Gerät), `PV Energy Today/Total (Bridge)`,
+  `Battery Charge Energy`, `Battery Discharge Energy` (von der Bridge aus der Leistung integriert – das Gerät hat
+  dafür keinen eigenen Zähler).
+
+**Energy-Dashboard:** `PV Energy Today/Lifetime` bzw. `PV Energy Total (Bridge)` als *Energie der PV-Erzeugung*,
+`Battery Charge/Discharge Energy` unter *Batteriesystem*, `Battery Charge/Discharge Power` als optionale
+*Leistungsmessung* („Zwei Sensoren“).
+
+## Nulleinspeisung und Batterie-Plan
+
+Der Regler liest einen Netzzähler aus MQTT und stellt die Ausgangsleistung des Wechselrichters (`permPower`) so ein,
+dass der Zähler ~0 W zeigt. Er ist **aus und im Trockenlauf**, bis du ihn im UI unter *Regler & Parameter* aktivierst
+(echte Schreibzugriffe brauchen eine Bestätigung). Ohne konfigurierten Zähler bleibt er untätig.
+
+1. Zähler konfigurieren: `METER_CONFIG_TOPIC` (Home-Assistant-Discovery-Topic des Zählers) **oder**
+   `METER_STATE_TOPIC` (+ `METER_VALUE_PATH`), siehe `.env.example`.
+2. Im UI zuerst **Trockenlauf** aktivieren und im Regelstatus prüfen, was der Regler tun würde.
+3. **Batterie-Plan** (optional): tagsüber lädt die Batterie mit einer Reserve (`CHARGE_RESERVE_W`) bis
+   `CHARGE_FULL_SOC`, danach wird nur PV durchgereicht; nachts wird bis `NIGHT_MAX_W` abgegeben, solange der SOC über
+   `NIGHT_MIN_SOC` liegt. Alle Parameter sind im UI einstellbar; die `.env`-Werte sind nur die Defaults.
+
+## Konfiguration
+
+Alles über `.env` (Vorlage: [`.env.example`](.env.example)). Wichtigste Variablen:
+
+| Variable | Bedeutung |
+|---|---|
+| `SUNSHARE_USER_ACCOUNT`, `SUNSHARE_PASSWORD` | Account der Bridge (eingeladener Nutzer empfohlen) |
+| `SUNSHARE_DEVICE_ID`, `SUNSHARE_DEVICE_SN` | aus `scripts/sunshare_login.py devices` |
+| `MQTT_HOST`, `MQTT_PORT`, `MQTT_USERNAME`, `MQTT_PASSWORD`, `MQTT_BASE_TOPIC` | MQTT-Broker (Default-Port 1883, Topic `sunshare`) |
+| `DATA_SOURCE` | `lan` (Default) oder `cloud` |
+| `HISTORY_RETENTION_DAYS` | Aufbewahrung des Verlaufs (Default 30) |
+| `RAW_LOG_SIZE` | Größe des Roh-Log-Puffers (Default 500) |
+| `METER_CONFIG_TOPIC` / `METER_STATE_TOPIC` / `METER_VALUE_PATH` | Netzzähler für den Regler |
+| `CONTROL_*` | Regelparameter (Ziel, Totband, Verstärkung, Grenzen, Failsafe) |
+| Batterie-Plan (`BATTERY_CAPACITY_WH`, `CHARGE_*`, `NIGHT_*`) | Defaults, im UI überschreibbar |
+| `TZ` | Zeitzone (Default `Europe/Berlin`) – bestimmt u. a. den Tageswechsel des PV-Tageszählers |
+
+Persistente Daten liegen in `./data` (Energiezähler, Verlauf, Regler-Einstellungen). Ändern sich `UI_PORT`/`LAN_PORT`,
+müssen die Port-Zuordnungen in `docker-compose.yml` angepasst werden.
+
+## UniFi-NAT-Regel für LAN-Modus
+
+Der Wechselrichter sendet seine Telemetrie an `web.sunsharetek.com:80`. Ein NAT-Eintrag leitet **nur den Traffic der
+Geräte-IP** auf den Container um; die Bridge reicht alles unverändert an den echten Host weiter, für die App und
+Sunshare ändert sich nichts.
+
+Wichtig: **nicht** die DNS-Auflösung fürs ganze Netz ändern – sonst landet auch der HTTPS-Traffic deines Handys auf
+der Bridge, den sie nicht transparent durchreichen kann. Die Regel muss auf die **Quell-IP des Wechselrichters**
+beschränkt sein.
+
+**Vorbereitung:** Vergib dem Gerät eine feste IP (DHCP-Reservierung).
+
+**SSH auf UDM/UDM-Pro/Cloud-Gateway, persistente `on_boot.d`-Regel** (überlebt Reboots/Firmware-Updates):
+
+```bash
+ssh root@<unifi-router-ip>
+mkdir -p /data/on_boot.d
+cat > /data/on_boot.d/10-sunshare-nat.sh <<'EOF'
+#!/bin/sh
+DEVICE_IP="192.168.1.50"    # feste IP des Wechselrichters
+PROXY_IP="192.168.1.20"     # IP des Docker-Hosts mit der Bridge
+iptables -t nat -C PREROUTING -s "$DEVICE_IP" -p tcp --dport 80 \
+  -j DNAT --to-destination "$PROXY_IP:80" 2>/dev/null || \
+iptables -t nat -A PREROUTING -s "$DEVICE_IP" -p tcp --dport 80 \
+  -j DNAT --to-destination "$PROXY_IP:80"
+EOF
+chmod +x /data/on_boot.d/10-sunshare-nat.sh
+sh /data/on_boot.d/10-sunshare-nat.sh   # einmal sofort anwenden
+```
+
+Liegen Geräte-IP und Docker-Host in unterschiedlichen VLANs/Subnetzen, zusätzlich eine `MASQUERADE`-Regel in
+`POSTROUTING` einplanen. Andere Router: das Prinzip ist ein Ziel-NAT `Quell-IP des Geräts, TCP 80 → Docker-Host:80`.
+Prüfen: `LOG_LEVEL=DEBUG` setzen und `docker compose logs -f` – eingehende Telemetrie sollte erscheinen, oder die
+**Raw**-Seite der UI zeigt die Pushes.
+
+## Sicherheit
+
+- Die **Web-UI hat keine Authentifizierung** und kann (über den Regler) die Ausgangsleistung deines Geräts ändern.
+  Betreibe sie nur im vertrauenswürdigen LAN, **nie** direkt im Internet. Bei Bedarf hinter einen Reverse-Proxy mit
+  Login oder VPN stellen; der Port lässt sich in `docker-compose.yml` auf `127.0.0.1:8099:8099` beschränken.
+- Die Seite **Raw** zeigt die Geräte-Pushes inkl. Seriennummer. Vor dem Teilen von Screenshots oder Mitschnitten
+  Seriennummer, Geräte-ID und IPs entfernen.
+- Zugangsdaten gehören nur in die `.env` (steht in `.gitignore`), nie in Issues oder Logs.
+- Der Telemetrie-Push des Geräts ist unverschlüsseltes HTTP; die Bridge verändert ihn nicht.
+- **OTA-/Firmware-Endpunkte** (`app/sysOtaVersion/*`) der Sunshare-API nie gegen ein echtes Gerät testen
+  (Brick-Risiko).
+
+## Grenzen
+
+- Nur an Geräten mit 2 PV-Eingängen, Batterie und Steckdosen-Ausgang getestet; andere Modelle können andere Felder
+  liefern (siehe **Raw**-Seite).
+- Der Wechselrichter sendet nur, solange die Bridge (oder die App) eine Real-Time-Session offenhält.
+- Die Sunshare-Schnittstellen sind nicht dokumentiert und können sich ändern.
+
+## Entwicklung
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+pytest
+```
+
+Architektur und Konventionen: [`CLAUDE.md`](CLAUDE.md). Gerätewissen (Endpunkte, Datenfelder, Beobachtungen):
+[`docs/DEVICE_NOTES.md`](docs/DEVICE_NOTES.md). Beiträge sind willkommen – bitte keine echten Zugangsdaten,
+Seriennummern oder unbereinigten Mitschnitte in Issues/PRs.
+
+## Danksagung und Lizenz
+
+Die Basis-Endpunkte und die Verschlüsselung stammen aus dem Reverse-Engineering von
+[DelphiXE5/homeassistant-sunshare](https://github.com/DelphiXE5/homeassistant-sunshare) (eine fertige
+Home-Assistant-Integration für dasselbe Gerät); die Erkenntnisse zu den Datenfeldern kamen aus eigenen Mitschnitten.
+
+Lizenz: [MIT](LICENSE).
