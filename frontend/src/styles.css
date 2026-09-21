@@ -1,4 +1,7 @@
 :root {
+  /* iPhone notch / home indicator; 0 elsewhere */
+  --sat: env(safe-area-inset-top, 0px); --sab: env(safe-area-inset-bottom, 0px);
+  --status-tint-h: 16px;
   --bg: #f4f6f8; --card: #ffffff; --text: #16202a; --muted: #5b6b7b; --line: #dfe5ea;
   --accent: #d97706; --ok: #15803d; --bad: #b91c1c; --info: #2563eb; --bar: #e5e9ed;
   /* series colors of charts, bars and legends */
@@ -24,8 +27,10 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
+/* The canvas (status bar area, overscroll) has the colour of the header, the page itself the grey of the content. */
+html { background: var(--card); }
 body {
-  margin: 0; background: var(--bg); color: var(--text);
+  margin: 0; min-height: 100dvh; background: var(--bg); color: var(--text);
   font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 h1, h2 { margin: 0; }
@@ -39,7 +44,7 @@ p { margin: .25rem 0; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 1rem; margin-bottom: .75rem; }
 .top {
   position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: .6rem;
-  padding: calc(.6rem + env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) .6rem max(1rem, env(safe-area-inset-left));
+  padding: calc(.6rem + var(--sat)) max(1rem, env(safe-area-inset-right)) .6rem max(1rem, env(safe-area-inset-left));
   background: var(--card); border-bottom: 1px solid var(--line);
 }
 .top h1 { font-size: 1.1rem; flex: none; }
@@ -49,7 +54,7 @@ p { margin: .25rem 0; }
 .dot.offline { background: var(--bad); }
 .link { background: none; border: 0; color: var(--accent); font: inherit; padding: .25rem; cursor: pointer; }
 
-.page { max-width: 96rem; margin: 0 auto; padding: 1rem max(1rem, env(safe-area-inset-left)) calc(5rem + env(safe-area-inset-bottom)); }
+.page { max-width: 96rem; margin: 0 auto; padding: 1rem max(1rem, env(safe-area-inset-left)) calc(4.8rem + var(--sab) * .4); }
 .soc-head { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; }
 .soc-head strong { font-size: 1.6rem; }
 .bar { height: .6rem; border-radius: .3rem; background: var(--bar); overflow: hidden; margin-top: .5rem; }
@@ -62,7 +67,7 @@ p { margin: .25rem 0; }
 /* Phone / PWA: tab bar at the bottom with the icon above the label. */
 .tabs {
   position: fixed; inset: auto 0 0 0; display: flex; background: var(--card); border-top: 1px solid var(--line);
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: calc(var(--sab) * .4);
 }
 .tabs a { flex: 1; display: flex; flex-direction: column; align-items: center; gap: .15rem; padding: .55rem .2rem .5rem; color: var(--muted); text-decoration: none; font-size: .72rem; }
 .tabs a.active { color: var(--accent); font-weight: 600; }
@@ -313,3 +318,20 @@ h2.with-icon .icon { width: 1.25rem; height: 1.25rem; color: var(--accent); }
 .ef-battery .ef-fill { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(to top, color-mix(in srgb, var(--node-c) 34%, transparent), color-mix(in srgb, var(--node-c) 14%, transparent)); transition: height .6s ease; }
 .ef-grid > div:last-child, .ef-battery > div:last-child { display: flex; flex-wrap: wrap; align-items: baseline; }
 .ef-grid .ef-state, .ef-battery .ef-state { margin-left: 0; margin-right: .5rem; }
+
+/* ---- touch devices (iOS / Android) ---- */
+html { -webkit-text-size-adjust: 100%; }
+a, button, summary, label, select, input[type="checkbox"], input[type="range"] { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+/* iOS zooms into a field on focus when its text is smaller than 16 px */
+@media (pointer: coarse) { input, select, select.lang, textarea { font-size: 16px; } }
+
+/* ---- installed iOS app: cover the blurred top edge (iOS 27 beta), see index.html ---- */
+#status-bar-tint { display: none; }
+@media (orientation: portrait) {
+  .is-ios.is-standalone #status-bar-tint {
+    display: block; position: fixed; inset: 0 0 auto 0; height: var(--status-tint-h); z-index: 2000; pointer-events: none;
+    background: var(--card);
+  }
+  .is-ios.is-standalone .top { padding-top: calc(.6rem + var(--sat) + var(--status-tint-h)); }
+  .is-ios.is-standalone .login { padding-top: calc(1rem + var(--status-tint-h)); }
+}

@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+"""Generates the iOS start images (apple-touch-startup-image) into public/splash/ and writes the
+matching <link> tags into index.html (between the "splash:start" and "splash:end" markers).
+
+iOS shows a start image while an installed PWA loads, but only if one exists for the exact size of the
+device (CSS pixels, pixel ratio and orientation); otherwise the screen stays white. So there is one
+image per device size, in a light and a dark variant (selected with prefers-color-scheme).
+
+Usage (needs Pillow: pip install pillow), from the frontend/ folder:
+    python3 scripts/make-splash.py
+Add new devices to DEVICES below and run it again. iOS reads the images when the app is added to the
+home screen: remove the app and add it again to see a change.
+"""
+from __future__ import annotations
+
+import re
+import sys
+from pathlib import Path
+
+from PIL import Image, ImageDraw, ImageFont
+
+ROOT = Path(__file__).resolve().parent.parent
+OUT = ROOT / "public" / "splash"
+ICON = ROOT / "public" / "icon-512.png"
+INDEX = ROOT / "index.html"
+FONT_CANDIDATES = [
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+    "C:/Windows/Fonts/arialbd.ttf",
+]
+
+# (name, CSS width, CSS height, device pixel ratio), portrait
+DEVICES = [
+    ("iPhone SE 1", 320, 568, 2),
+    ("iPhone 6/7/8, SE 2/3", 375, 667, 2),
+    ("iPhone 6/7/8 Plus", 414, 736, 3),
+    ("iPhone X/XS/11 Pro, 12/13 mini", 375, 812, 3),
+    ("iPhone XR/11", 414, 896, 2),
+    ("iPhone XS Max/11 Pro Max", 414, 896, 3),
+    ("iPhone 12/13/14", 390, 844, 3),
+    ("iPhone 12/13 Pro Max, 14 Plus", 428, 926, 3),
+    ("iPhone 14 Pro/15/16", 393, 852, 3),
+    ("iPhone 14/15 Pro Max, 15/16 Plus", 430, 932, 3),
+    ("iPhone 16 Pro/17 Pro", 402, 874, 3),
+    ("iPhone 16 Pro Max/17 Pro Max", 440, 956, 3),
+    ("iPhone Air", 420, 912, 3),
+    ("iPad 9.7 / mini 5", 768, 1024, 2),
+    ("iPad 10.2", 810, 1080, 2),
+    ("iPad Air 10.9 / iPad 10", 820, 1180, 2),
+    ("iPad Pro 10.5", 834, 1112, 2),
+    ("iPad Pro 11", 834, 1194, 2),
+    ("iPad mini 6/7", 744, 1133, 2),
+    ("iPad Pro 11 M4", 834, 1210, 2),
+    ("iPad Pro 12.9", 1024, 1366, 2),
+    ("iPad Pro 13 M4", 1032, 1376, 2),
+]
+
+# the page background of the app in each theme (see styles.css) and the text colour on it
+THEMES = {
+    "light": {"bg": "#f4f6f8", "fg": "#16202a"},
+    "dark": {"bg": "#0f1720", "fg": "#e8eef4"},
+}
+
+
+def load_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    for path in FONT_CANDIDATES:
+        if Path(path).exists():
+            return ImageFont.truetype(path, size)
+    print("warning: no TrueType font found, the title falls back to a small default font", file=sys.stderr)
+    return ImageFont.load_default()
+
+
+def rounded_icon(size: int) -> Image.Image:
+    icon = Image.open(ICON).convert("RGBA").resize((size, size), Image.LANCZOS)
+    mask = Image.new("L", (size * 4, size * 4), 0)  # drawn 4x larger for smooth corners
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, size * 4 - 1, size * 4 - 1], radius=int(size * 4 * 0.2237), fill=255)
+    icon.putalpha(mask.resize((size, size), Image.LANCZOS))
+    return icon
+
+
+def make(width: int, height: int, theme: str) -> Image.Image:
+    colors = THEMES[theme]
+    img = Image.new("RGB", (width, height), colors["bg"])
+    icon_size = round(min(width, height) * 0.24)
+    icon = rounded_icon(icon_size)
+    x, y = (width - icon_size) // 2, round(height * 0.5 - icon_size * 0.72)
+    img.paste(icon, (x, y), icon)
+    draw = ImageDraw.Draw(img)
+    font = load_font(round(icon_size * 0.2))
+    text = "Sunshare"
+    box = draw.textbbox((0, 0), text, font=font)
+    draw.text(((width - (box[2] - box[0])) // 2 - box[0], y + icon_size + round(icon_size * 0.16)), text, font=font, fill=colors["fg"])
+    # few flat colours: a small palette keeps every file at a few KB
+    return img.quantize(colors=48, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
+
+
+def main() -> None:
+    OUT.mkdir(parents=True, exist_ok=True)
+    for old in OUT.glob("*.png"):
+        old.unlink()
+    tags, made = [], set()
+    for name, w, h, ratio in DEVICES:
+        px_w, px_h = w * ratio, h * ratio
+        for theme in THEMES:
+            fname = f"{px_w}x{px_h}-{theme}.png"
+            if (px_w, px_h, theme) not in made:
+                make(px_w, px_h, theme).save(OUT / fname, optimize=True)
+                made.add((px_w, px_h, theme))
+            media = (f"(device-width: {w}px) and (device-height: {h}px) and (-webkit-device-pixel-ratio: {ratio}) "
+                     f"and (orientation: portrait) and (prefers-color-scheme: {theme})")
+            tags.append(f'    <link rel="apple-touch-startup-image" media="{media}" href="/app/splash/{fname}" /><!-- {name} -->')
+    html = INDEX.read_text(encoding="utf-8")
+    block = "    <!-- splash:start (generated by scripts/make-splash.py) -->\n" + "\n".join(tags) + "\n    <!-- splash:end -->"
+    new, n = re.subn(r"    <!-- splash:start.*?<!-- splash:end -->", lambda _: block, html, flags=re.S)
+    if n != 1:
+        sys.exit("index.html: splash:start / splash:end markers not found")
+    INDEX.write_text(new, encoding="utf-8")
+    total = sum(f.stat().st_size for f in OUT.glob("*.png"))
+    print(f"{len(made)} images ({total / 1024:.0f} KB), {len(tags)} link tags")
+
+
+if __name__ == "__main__":
+    main()

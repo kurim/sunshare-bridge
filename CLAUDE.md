@@ -58,6 +58,11 @@ docker compose up -d --build
   Zähler nur WR-Ausgang, mit Hinweis). Das Gerät misst nur Summen: die Leitungen zwischen den Knoten sind eine **Zuordnung**
   (Solar lädt zuerst die Batterie, der gemessene WR-Ausgang geht an Haus, dann Netz; das Netz deckt den Rest). Änderungen an
   `flows.ts` brauchen einen Test. Linien unter 5 W sind ruhig; `prefers-reduced-motion` schaltet die Animation ab.
+- **iOS-PWA:** Sicherheitsabstände nur über `--sat`/`--sab` (`styles.css`), nie `env(safe-area-inset-*)` direkt für oben/unten
+  (so lassen sie sich im Test überschreiben). Installiert auf iOS (`html.is-ios.is-standalone`, gesetzt in `index.html`) gibt es
+  den Streifen `#status-bar-tint` gegen den Blur der iOS-27-Beta; Eingabefelder haben auf Touch-Geräten 16 px (sonst zoomt iOS).
+- **iOS-Startbilder** (`public/splash/*.png` und die `apple-touch-startup-image`-Tags in `index.html`) sind erzeugt:
+  `python3 frontend/scripts/make-splash.py` (Pillow) statt von Hand ändern; iOS braucht pro Gerätegröße ein exakt passendes Bild.
 - **Frontend-Layout:** Handy = eine Spalte + untere Tab-Leiste mit Icons, ab 900 px Navigation in der Kopfzeile und
   Zwei-Spalten-Raster (`.col`, `*-grid` in `styles.css`); jede Seite muss bei 390 px ohne waagerechtes Scrollen passen.
 - **Frontend:** neue Seiten kommen in `frontend/` (React + TS, mobile-first, Light/Dark über `prefers-color-scheme`);

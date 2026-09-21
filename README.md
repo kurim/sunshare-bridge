@@ -125,6 +125,16 @@ Schlüssel und `{Platzhalter}` vollständig sind. Auch die Texte der Bridge (Reg
 Fehler bei ungültigen Parametern, Login-Fehler, Gruppen der `.env`-Ansicht) werden übersetzt: die Bridge sendet Schlüssel und
 Parameter (`app/messages.py`), die Oberfläche macht den Satz daraus; in Logs und API-Fehlern steht der englische Text.
 
+**Als App installieren (PWA):** über HTTPS (z. B. Cloudflare Tunnel; Service Worker und Installation brauchen das). iPhone:
+Safari → Teilen → „Zum Home-Bildschirm“, Android/Chrome: „App installieren“. Der Service Worker cached nur die App-Shell,
+Daten kommen immer live von der Bridge. Ändert sich das Meta-Tag `apple-mobile-web-app-status-bar-style` oder das Manifest,
+muss die App unter iOS einmal vom Home-Bildschirm entfernt und neu hinzugefügt werden (iOS liest es beim Hinzufügen).
+Beim Start zeigt iOS ein **Startbild** (Sonne und Name, hell oder dunkel je nach Systemeinstellung) für alle gängigen iPhones und
+iPads (`frontend/public/splash/`, erzeugt mit `python3 frontend/scripts/make-splash.py`, braucht Pillow; neue Geräte in der Liste
+`DEVICES` ergänzen). Auch das liest iOS nur beim Hinzufügen zum Home-Bildschirm.
+Die iOS-27-Beta weichzeichnet den oberen Rand installierter PWAs; die App legt dort auf dem iPhone einen 16 px hohen Streifen in
+der Header-Farbe an und schiebt die Seite darunter (`#status-bar-tint`, Kniff aus einer Diskussion auf r/PWA).
+
 Die Live-Verbindung wird geschlossen, solange die App im Hintergrund ist, und beim Zurückkehren wieder geöffnet.
 Ohne `UI_USER`/`UI_PASSWORD` zeigt die App einen Hinweis, dass kein Login eingerichtet ist (siehe [Sicherheit](#sicherheit)).
 
