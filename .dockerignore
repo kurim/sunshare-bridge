@@ -8,4 +8,8 @@ scripts
 *.md
 *.zip
 __pycache__
+frontend/node_modules
+frontend/dist
+app/web
+.appextract
 .pytest_cache

@@ -19,8 +19,8 @@ phone app stays logged in. The UI and docs are in German; the code and comments 
   Sunshare, ein NAT-Eintrag im Router leitet das über die Bridge (die alles unverändert weiterreicht), oder
   **`cloud`** – Abfrage der (AES-verschlüsselten) Cloud-API.
 - **MQTT + Home-Assistant-Discovery**: Sensoren erscheinen automatisch, inkl. Energiezähler fürs Energy-Dashboard.
-- **Web-UI** (Port 8099): Telemetrie & Erträge · Leistungsfluss-Charts (Live und bis 30 Tage) · Roh-Log der
-  Geräte-Pushes · Regler & Batterie-Plan.
+- **Web-UI** (Port 8099, React-App und PWA): animiertes Energiefluss-Diagramm · Leistungsfluss-Charts (Live und bis
+  30 Tage) · Telemetrie & Erträge · Roh-Log der Geräte-Pushes · Regler & Batterie-Plan · Login, Hell/Dunkel, Deutsch/Englisch.
 - **Langzeit-Verlauf**: ein Mittelwert pro Minute in SQLite, Aufbewahrung einstellbar.
 - **Nulleinspeisung** (optional, standardmäßig aus): führt die Ausgangsleistung anhand eines Netzzählers nach, mit
   Batterie-Plan (tagsüber laden, nachts kontrolliert abgeben). Trockenlauf zum Ausprobieren.
@@ -28,13 +28,31 @@ phone app stays logged in. The UI and docs are in German; the code and comments 
 
 ## Screenshots
 
-**Telemetrie** – Leistungen, Batterie-SOC mit Schwellen, Erträge, Lade-Effizienz:
+**Dashboard** – Energiefluss mit einer Leitung pro Paar (hier: Solar lädt die Batterie, das Netz versorgt das Haus), Kacheln, Reglerstatus:
 
-![Telemetrie-Seite der Web-UI](docs/img/telemetry.png)
+![Dashboard mit Energiefluss](docs/img/dashboard.png)
 
-**Regler & Parameter** – Nulleinspeisung, Batterie-Plan-Parameter, Vorschau und die `.env` (einklappbar, schreibgeschützt):
+Der Fluss in Bewegung (die hellen Impulse laufen in Flussrichtung, Tempo und Dicke folgen der Leistung; [als MP4](docs/img/dashboard.mp4)):
 
-![Seite „Regler & Parameter“ der Web-UI](docs/img/control.png)
+![Animiertes Dashboard](docs/img/dashboard.gif)
+
+**Telemetrie** – Live-Leistungen, Batterie-SOC mit Schwellen, Erträge, Lade-Effizienz, „Ausgang gespeist aus …“:
+
+![Telemetrie-Seite](docs/img/telemetry.png)
+
+**Fluss** – Leistung, Netzzähler und Batterie-SOC, hier die letzten 24 Stunden:
+
+![Leistungsfluss-Charts](docs/img/flow.png)
+
+**Regler** – Nulleinspeisung, Parameter, Geräte-Grenzen, Plan-Vorschau und die `.env` (einklappbar, schreibgeschützt):
+
+![Regler-Seite](docs/img/control.png)
+
+**Handy / PWA** (hell):
+
+<img src="docs/img/mobile.png" alt="Übersicht auf dem Handy" width="320">
+
+_Dashboard, Animation und Telemetrie sind Aufnahmen einer laufenden Bridge; Fluss, Regler und Handy zeigen Beispieldaten._
 
 ## Voraussetzungen
 
@@ -82,12 +100,35 @@ In beiden Fällen läuft ein Keepalive (`openRealTime`) gegen die Cloud – ohne
 
 ## Web-UI
 
+`http://<docker-host>:8099/` (leitet nach `/app/`) – React-App, für das Handy gebaut und als **PWA**
+installierbar (Manifest, Service Worker, Safe-Area-Layout, Hell/Dunkel nach Systemeinstellung).
+
 | Seite | Inhalt |
 |---|---|
-| **Telemetrie** `/` | Leistungen, Batterie-SOC mit Schwellen, Erträge, Lade-Effizienz, „Ausgang gespeist aus …“ |
-| **Leistungsfluss** `/flow` | PV, Wechselrichter, Akku, Steckdose, Abgabe ins Hausnetz, Netzzähler, SOC. Live (~30 min) oder aus dem Verlauf (6 h · 24 h · 7 T · 30 T) |
-| **Raw** `/raw` | Jeder Push des Geräts an `realTimeElectricFlow` unverändert samt Antwort des Servers; Feldübersicht, Filter, JSON-Download. Nur im Speicher (`RAW_LOG_SIZE`) |
-| **Regler & Parameter** `/control` | Nulleinspeisung ein/aus/Trockenlauf, Batterie-Plan-Parameter (einstellbar, in `data/control.json` gespeichert), `.env` schreibgeschützt mit maskierten Passwörtern |
+| **Übersicht** `/app/` | Animiertes Energiefluss-Diagramm (Solar, Netz, Batterie, Zuhause; jeder Knoten hat drei Anschlüsse, eine Leitung pro Paar, und es leuchtet nur die Leitung, über die die Energie fließt – z. B. Solar → Batterie und Netz → Zuhause. Ein farbiger Kern mit hellen Leuchtimpulsen läuft in Flussrichtung, Tempo und Dicke folgen der Leistung; Knopf „Animation an/aus“ überstimmt die Systemeinstellung „Bewegung reduzieren“), Ladezustand mit Farbe, Leistungskacheln, Reglerstatus, Login-Fehler der Sunshare-Cloud |
+| **Fluss** `/app/flow` | Charts für Leistung, Netzzähler und SOC: Live (mit Glättung) oder 6 h · 24 h · 7 T · 30 T aus dem Verlauf; Tooltip per Maus/Touch, Lücken als Unterbrechung |
+| **Telemetrie** `/app/telemetry` | Live-Leistungen, SOC mit Schwellen, Erträge und Zähler, Lade-Effizienz, „Ausgang gespeist aus …“ |
+| **Regler** `/app/control` | Regler/Trockenlauf/Plan, Parameter, Plan-Vorschau, Geräte-Grenzen, `.env`-Ansicht |
+| **Raw** `/app/raw` | Jeder Push des Geräts unverändert samt Antwort des Servers, Feldübersicht, Filter, Pause, JSON-Download (nur im Speicher, `RAW_LOG_SIZE`) |
+
+**Desktop und Handy:** Auf dem Desktop liegt die Navigation (mit Icons) in der Kopfzeile und die Seiten nutzen die volle
+Breite in zwei Spalten; auf dem Handy gibt es eine Leiste unten mit Icons über den Labels.
+
+**Darstellung:** Hell, Dunkel oder Automatisch (folgt der Systemeinstellung, auch wenn sie sich zur Laufzeit ändert) –
+Umschalter (Sonne/Mond/Halbkreis) oben rechts, die Wahl wird im Browser gemerkt und beim Laden ohne Aufblitzen angewendet;
+die Farbe der Titelleiste der PWA folgt ihr.
+
+**Sprachen:** Deutsch und Englisch, umschaltbar oben rechts (die Wahl wird im Browser gemerkt, Voreinstellung nach
+Browser-Sprache). Eine weitere Sprache: `frontend/src/i18n/en.ts` nach `<code>.ts` kopieren, die Werte übersetzen und
+die Sprache in `frontend/src/i18n/index.tsx` eintragen (`LANGUAGES`, plus Import in `CATALOGS`). Der Build prüft, dass
+Schlüssel und `{Platzhalter}` vollständig sind. Auch die Texte der Bridge (Reglerphase, letzte Aktion, Geräte-Hinweise,
+Fehler bei ungültigen Parametern, Login-Fehler, Gruppen der `.env`-Ansicht) werden übersetzt: die Bridge sendet Schlüssel und
+Parameter (`app/messages.py`), die Oberfläche macht den Satz daraus; in Logs und API-Fehlern steht der englische Text.
+
+Die Live-Verbindung wird geschlossen, solange die App im Hintergrund ist, und beim Zurückkehren wieder geöffnet.
+Ohne `UI_USER`/`UI_PASSWORD` zeigt die App einen Hinweis, dass kein Login eingerichtet ist (siehe [Sicherheit](#sicherheit)).
+
+Die Adressen der früheren Oberfläche (`/`, `/flow`, `/control`, `/raw`) leiten auf die entsprechenden Seiten der App weiter.
 
 ## Home Assistant
 
@@ -127,6 +168,7 @@ Alles über `.env` (Vorlage: [`.env.example`](.env.example)). Wichtigste Variabl
 | Variable | Bedeutung |
 |---|---|
 | `SUNSHARE_USER_ACCOUNT`, `SUNSHARE_PASSWORD` | Account der Bridge (eingeladener Nutzer empfohlen) |
+| `SUNSHARE_USER_GUEST` | `TRUE` (Default): eingeladener Account, `NIGHT_MIN_SOC` setzt nur die Bridge um. `FALSE`: Haupt-Account, `NIGHT_MIN_SOC` wird zusätzlich als Entladestopp (`socMin`, max. 20 %) ins Gerät geschrieben und die Einspeise-Grenze `countryMaxPower` ist änderbar (Schreiben nur bei aktivem Regler ohne Trockenlauf) |
 | `SUNSHARE_DEVICE_ID`, `SUNSHARE_DEVICE_SN` | aus `scripts/sunshare_login.py devices` |
 | `MQTT_HOST`, `MQTT_PORT`, `MQTT_USERNAME`, `MQTT_PASSWORD`, `MQTT_BASE_TOPIC` | MQTT-Broker (Default-Port 1883, Topic `sunshare`) |
 | `DATA_SOURCE` | `lan` (Default) oder `cloud` |
@@ -177,9 +219,16 @@ Prüfen: `LOG_LEVEL=DEBUG` setzen und `docker compose logs -f` – eingehende Te
 
 ## Sicherheit
 
-- Die **Web-UI hat keine Authentifizierung** und kann (über den Regler) die Ausgangsleistung deines Geräts ändern.
-  Betreibe sie nur im vertrauenswürdigen LAN, **nie** direkt im Internet. Bei Bedarf hinter einen Reverse-Proxy mit
-  Login oder VPN stellen; der Port lässt sich in `docker-compose.yml` auf `127.0.0.1:8099:8099` beschränken.
+- Die Web-UI kann (über den Regler) die Ausgangsleistung deines Geräts ändern. **Ohne** `UI_USER`/`UI_PASSWORD` hat
+  sie **keine Authentifizierung** – dann nur im vertrauenswürdigen LAN betreiben. **Mit** beiden Variablen verlangt
+  die gesamte UI und API (auch der Live-Stream) eine Anmeldung: ein Benutzer, Session-Cookie (`HttpOnly`,
+  `SameSite=Strict`, `Secure` hinter https, 30 Tage), Sperre nach 5 Fehlversuchen, Schreibzugriffe mit fremdem
+  `Origin` werden abgelehnt. Ein Passwortwechsel meldet alle Sitzungen ab.
+- **Zugriff von unterwegs (z. B. Cloudflare Tunnel):** Den Tunnel nur auf den **UI-Port** (`http://sunshare-bridge:8099`
+  bzw. `localhost:8099`) zeigen lassen, **nie** auf den LAN-Port 80. Vorher `UI_USER`/`UI_PASSWORD` setzen (langes
+  Passwort). PWA-Installation und Service Worker brauchen https, das der Tunnel liefert. Die Live-Anzeige nutzt
+  Server-Sent Events; Cloudflare reicht sie durch (die Bridge sendet alle 15 s einen Keepalive). Wer zusätzlich
+  Cloudflare Access davorschaltet, bekommt eine zweite Hürde.
 - Die Seite **Raw** zeigt die Geräte-Pushes inkl. Seriennummer. Vor dem Teilen von Screenshots oder Mitschnitten
   Seriennummer, Geräte-ID und IPs entfernen.
 - Zugangsdaten gehören nur in die `.env` (steht in `.gitignore`), nie in Issues oder Logs.
@@ -199,6 +248,10 @@ Prüfen: `LOG_LEVEL=DEBUG` setzen und `docker compose logs -f` – eingehende Te
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
 pytest
+
+# React-Oberfläche (Vite + TypeScript, Node ≥ 20): gebaut wird sie im Docker-Build (Multi-Stage), lokal so:
+cd frontend && npm ci && npm run build    # Ausgabe: frontend/dist, wird unter /app/ ausgeliefert
+npm run dev                               # Dev-Server, Proxy auf die Bridge (BRIDGE_URL, Default http://localhost:8099)
 ```
 
 Architektur und Konventionen: [`CLAUDE.md`](CLAUDE.md). Gerätewissen (Endpunkte, Datenfelder, Beobachtungen):
