@@ -17,6 +17,6 @@ def isolated_data(tmp_path, monkeypatch):
     monkeypatch.setattr(st, "ENERGY_FILE", tmp_path / "battery_energy.json")
     monkeypatch.setattr(st, "HISTORY_FILE", tmp_path / "history.db")
     for key in list(os.environ):
-        if key.startswith(("SUNSHARE_", "MQTT_", "METER_", "CONTROL_", "NIGHT_", "CHARGE_", "HISTORY_", "RAW_")):
+        if key.startswith(("SUNSHARE_", "UI_", "WEB_", "MQTT_", "METER_", "CONTROL_", "NIGHT_", "CHARGE_", "HISTORY_", "RAW_")):
             monkeypatch.delenv(key, raising=False)
     return tmp_path

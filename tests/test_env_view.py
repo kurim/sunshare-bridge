@@ -27,3 +27,9 @@ def test_defaults_are_reported_as_such(monkeypatch):
     assert items["MQTT_PORT"] == {"key": "MQTT_PORT", "value": "1883", "secret": False, "source": "default"}
     monkeypatch.setenv("MQTT_PORT", "8883")
     assert _items(describe_env())["MQTT_PORT"]["source"] == "env"
+
+
+def test_groups_have_ids_for_translation():
+    groups = describe_env()
+    assert [g["id"] for g in groups] == ["account", "ui_login", "mqtt", "source", "intervals", "meter", "controller"]
+    assert all(g["title"] for g in groups)  # English fallback title

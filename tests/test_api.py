@@ -15,13 +15,11 @@ def _run(coro_fn):
     return asyncio.run(go())
 
 
-def test_pages_are_served_and_revalidated_with_etag():
+def test_old_addresses_lead_to_the_react_app():
     async def check(client):
-        for path in ("/", "/flow", "/control", "/raw"):
-            r = await client.get(path)
-            assert r.status == 200 and "text/html" in r.headers["Content-Type"]
-            etag = r.headers["ETag"]
-            assert (await client.get(path, headers={"If-None-Match": etag})).status == 304
+        for old, new in {"/": "/app/", "/flow": "/app/flow", "/control": "/app/control", "/raw": "/app/raw"}.items():
+            r = await client.get(old, allow_redirects=False)
+            assert r.status == 302 and r.headers["Location"] == new, old
 
     _run(check)
 
@@ -41,7 +39,9 @@ def test_control_settings_roundtrip_and_validation():
         ok = await client.post("/api/control", json={"settings": {"NIGHT_MAX_W": 120}})
         assert ok.status == 200 and (await ok.json())["settings"]["NIGHT_MAX_W"] == 120
         bad = await client.post("/api/control", json={"settings": {"CHARGE_RELEASE_SOC": 99}})
-        assert bad.status == 400 and "CHARGE_RELEASE_SOC" in (await bad.json())["error"]
+        body = await bad.json()
+        assert bad.status == 400 and "CHARGE_RELEASE_SOC" in body["error"]
+        assert body["msg"]["key"] == "err.release_over_full"  # translatable by the UI
         assert (await client.post("/api/control", json={"enabled": "yes"})).status == 400
 
     _run(check)

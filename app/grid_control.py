@@ -23,8 +23,9 @@ from typing import Any
 
 import paho.mqtt.client as mqtt
 
+from .messages import Msg, MsgError
 from .state import STATE
-from .sunshare_cloud import SunshareCloudClient
+from .sunshare_cloud import DEVICE_SOC_MIN_MAX, SunshareCloudClient
 
 _LOGGER = logging.getLogger("sunshare.control")
 
@@ -97,6 +98,11 @@ PLAN_SETTINGS: dict[str, tuple[str, str, float, float]] = {
 }
 
 
+def _n(value: float) -> float | int:
+    """Numbers in messages: 63.0 -> 63, 63.46 -> 63.5."""
+    return int(value) if float(value).is_integer() else round(float(value), 1)
+
+
 def _fmt_hm(minute: int) -> str:
     return f"{minute // 60:02d}:{minute % 60:02d}"
 
@@ -141,8 +147,15 @@ class GridController:
         self.night_max_w = int(env("NIGHT_MAX_W", "150"))
         self.night_min_soc = float(env("NIGHT_MIN_SOC", "25"))
         self._battery_full = False
-        self.phase = "–"
+        self.phase: Msg | None = None
         self.default_settings = self.settings()
+
+        # Main account: NIGHT_MIN_SOC is written to the device (`socMin`, capped at
+        # DEVICE_SOC_MIN_MAX) and the device enforces it. Guest account: bridge logic only.
+        self.guest = bool(getattr(client, "guest", True))
+        self.device_limits: dict[str, Any] | None = None  # last emsModeAdvan read (main account)
+        self.device_note: Msg | None = None
+        self._device_soc_ok = False  # device `socMin` currently equals what NIGHT_MIN_SOC asks for
 
         saved = self._load()
         try:
@@ -158,7 +171,7 @@ class GridController:
         self.meter_t: float | None = None
         self.setpoint: int | None = None
         self.strategy_type = 1
-        self.last_action = "–"
+        self.last_action: Msg | None = None
         self._last_write_t = 0.0
         self._failsafe_active = False
         self._mqtt_connected = False
@@ -205,7 +218,7 @@ class GridController:
         parsed: dict[str, Any] = {}
         for key, raw in values.items():
             if key not in PLAN_SETTINGS:
-                raise ValueError(f"unbekannter Parameter {key}")
+                raise MsgError(Msg("err.unknown_param", "error", key=key))
             attr, kind, lo, hi = PLAN_SETTINGS[key]
             try:
                 if kind == "time":
@@ -219,16 +232,70 @@ class GridController:
                     if kind == "int":
                         value = int(round(value))
             except (ValueError, TypeError):
-                raise ValueError(f"{key}: ungültiger Wert {raw!r}") from None
+                raise MsgError(Msg("err.invalid_value", "error", key=key, value=repr(raw))) from None
             if not lo <= value <= hi:
-                raise ValueError(f"{key}: muss zwischen {lo:g} und {hi:g} liegen")
+                raise MsgError(Msg("err.range", "error", key=key, lo=f"{lo:g}", hi=f"{hi:g}"))
             parsed[attr] = value
         full = parsed.get("full_soc", self.full_soc)
         release = parsed.get("release_soc", self.release_soc)
         if release > full:
-            raise ValueError("CHARGE_RELEASE_SOC darf nicht über CHARGE_FULL_SOC liegen")
+            raise MsgError(Msg("err.release_over_full", "error"))
         for attr, value in parsed.items():
             setattr(self, attr, value)
+
+    def _writes_allowed(self) -> bool:
+        return self.enabled and not self.dry_run
+
+    def _device_soc_min_target(self) -> int:
+        return max(0, min(int(round(self.night_min_soc)), DEVICE_SOC_MIN_MAX))
+
+    def _bridge_min_soc(self) -> float | None:
+        """SOC at/below which the bridge itself cuts the output at night, or None if the
+        device's own `socMin` covers it (main account, value within the device's range)."""
+        if self.guest or not self._device_soc_ok or self.night_min_soc > DEVICE_SOC_MIN_MAX:
+            return self.night_min_soc
+        return None
+
+    async def sync_device_limits(self) -> None:
+        """Main account only: bring the device's `socMin` in line with NIGHT_MIN_SOC.
+        Like every real write it needs the controller enabled and out of dry-run."""
+        if self.guest:
+            self.device_note = Msg("dev.guest")
+            return
+        settings = await self._client.read_ems_settings()
+        adv = (settings or {}).get("emsModeAdvan") or {}
+        if not adv:
+            self._device_soc_ok = False
+            self.device_note = Msg("dev.unreadable", "warn")
+            return
+        self.device_limits = {
+            "soc_min": adv.get("socMin"), "soc_max": adv.get("socMax"),
+            "country_max_power": adv.get("countryMaxPower"),
+        }
+        want = self._device_soc_min_target()
+        if adv.get("socMin") == want:
+            self._device_soc_ok = True
+            self.device_note = Msg("dev.already", "ok", soc=want)
+            return
+        self._device_soc_ok = False
+        if not self._writes_allowed():
+            self.device_note = Msg("dev.would_write", "warn", old=adv.get("socMin"), new=want)
+            return
+        ok = await self._client.set_device_limits(soc_min=want)
+        self._device_soc_ok = ok
+        if ok:
+            self.device_limits["soc_min"] = want
+        self.device_note = (
+            Msg("dev.soc_set", "ok", old=adv.get("socMin"), new=want) if ok else Msg("dev.soc_failed", "error", new=want)
+        )
+        _LOGGER.info("%s", self.device_note)
+
+    async def _set_country_max_power(self, watts: int) -> None:
+        ok = await self._client.set_device_limits(country_max_power=watts)
+        if ok and self.device_limits is not None:
+            self.device_limits["country_max_power"] = watts
+        self.device_note = Msg("dev.country_set", "ok", w=watts) if ok else Msg("dev.country_failed", "error", w=watts)
+        _LOGGER.info("%s", self.device_note)
 
     def status(self) -> dict[str, Any]:
         latest = STATE.latest or {}
@@ -241,7 +308,7 @@ class GridController:
                 est_night_h = round((soc - self.night_min_soc) / 100 * self.battery_wh / self.night_max_w, 1)
         return {
             "plan": self.plan_enabled,
-            "phase": self.phase,
+            "phase": self.phase.to_dict() if self.phase else None,
             "est_full_h": est_full_h,
             "est_night_h": est_night_h,
             "enabled": self.enabled,
@@ -257,11 +324,16 @@ class GridController:
             "config_seen": self._config_seen,
             "value_path": self.value_path,
             "last_payload": self._last_payload,
-            "last_action": self.last_action,
+            "last_action": self.last_action.to_dict() if self.last_action else None,
             "settings": self.settings(),
             "defaults": self.default_settings,
             "battery_full": self._battery_full,
             "control_max_w": self.max_w,
+            "cloud_login": self._client.login_status() if hasattr(self._client, "login_status") else None,
+            "account": "guest" if self.guest else "main",
+            "min_soc_source": "bridge" if self._bridge_min_soc() is not None else "device",
+            "device_limits": self.device_limits,
+            "device_note": self.device_note.to_dict() if self.device_note else None,
         }
 
     async def configure(
@@ -270,12 +342,28 @@ class GridController:
         dry_run: bool | None = None,
         plan: bool | None = None,
         settings: dict[str, Any] | None = None,
+        device: dict[str, Any] | None = None,
     ) -> None:
-        """Raises ValueError (before changing anything) if `settings` is invalid."""
+        """Raises MsgError, a ValueError (before changing anything) if `settings` or `device` is invalid.
+        `device` holds device-side limits (only COUNTRY_MAX_POWER, main account only)."""
+        country_max: int | None = None
+        if device:
+            if set(device) - {"COUNTRY_MAX_POWER"}:
+                raise MsgError(Msg("err.unknown_device_param", "error", keys=", ".join(sorted(set(device) - {"COUNTRY_MAX_POWER"}))))
+            raw = device["COUNTRY_MAX_POWER"]
+            if isinstance(raw, bool) or not isinstance(raw, (int, float)) or not 0 <= raw <= 2000:
+                raise MsgError(Msg("err.country_range", "error"))
+            if self.guest:
+                raise MsgError(Msg("err.country_main_only", "error"))
+            now_enabled = self.enabled if enabled is None else enabled
+            now_dry = self.dry_run if dry_run is None else dry_run
+            if not (now_enabled and not now_dry):
+                raise MsgError(Msg("err.country_needs_live", "error"))
+            country_max = int(round(raw))
         if settings:
             self._apply_settings(settings)
             self._battery_full = False  # re-evaluate "full" against the new thresholds
-            self.last_action = "Parameter aktualisiert"
+            self.last_action = Msg("act.params_updated", "ok")
         was_active = self.enabled and not self.dry_run
         if enabled is True and not self.enabled:
             settings = await self._client.read_ems_settings()
@@ -284,7 +372,7 @@ class GridController:
                 self.restore_w = int(pojo["permPower"])
                 self.setpoint = self.restore_w
                 self.strategy_type = int(pojo.get("emsStrategyType") or 1)
-            self.last_action = f"aktiviert (Ausgangswert vorher: {self.restore_w} W)"
+            self.last_action = Msg("act.enabled", "ok", w="?" if self.restore_w is None else self.restore_w)
         if enabled is not None:
             self.enabled = enabled
         if dry_run is not None:
@@ -293,9 +381,15 @@ class GridController:
             self.plan_enabled = plan
         if was_active and not (self.enabled and not self.dry_run) and self.restore_w is not None:
             ok = await self._client.set_output_power(self.restore_w, self.strategy_type)
-            self.last_action = f"Ausgangswert zurück auf {self.restore_w} W ({'ok' if ok else 'FEHLER'})"
+            self.last_action = (
+                Msg("act.restored", "ok", w=self.restore_w) if ok else Msg("act.restore_failed", "error", w=self.restore_w)
+            )
             if ok:
                 self.setpoint = self.restore_w
+        if not self.guest and (settings or enabled is not None or dry_run is not None):
+            await self.sync_device_limits()
+        if country_max is not None:
+            await self._set_country_max_power(country_max)
         self._save()
         _LOGGER.info("Control config: enabled=%s dry_run=%s (%s)", self.enabled, self.dry_run, self.last_action)
 
@@ -365,6 +459,10 @@ class GridController:
         self._mqtt.on_disconnect = self._on_disconnect
         self._mqtt.connect_async(host, port)
         self._mqtt.loop_start()
+        try:
+            await self.sync_device_limits()
+        except Exception:
+            _LOGGER.exception("Device limit sync failed")
         _LOGGER.info(
             "Grid controller started (enabled=%s dry_run=%s, config topic %s)",
             self.enabled, self.dry_run, self.config_topic,
@@ -381,26 +479,27 @@ class GridController:
             except Exception:
                 _LOGGER.exception("Grid control step failed")
 
-    def _plan_cap(self, latest: dict[str, Any], now: float) -> tuple[str, int] | None:
-        """(phase text, max output watts) for the current time/SOC/PV, or None if
+    def _plan_cap(self, latest: dict[str, Any], now: float) -> tuple[Msg, int] | None:
+        """(phase message, max output watts) for the current time/SOC/PV, or None if
         SOC or PV power are unknown (then nothing is changed)."""
         soc, pv = latest.get("soc"), latest.get("pvPow")
         if soc is None or pv is None:
             return None
         lt = time.localtime(now)
         if _in_window(lt.tm_hour * 60 + lt.tm_min, self.night_start, self.night_end):
-            if soc <= self.night_min_soc:
-                return f"Nacht: SOC {soc} % ≤ {self.night_min_soc:.0f} % – keine Abgabe", 0
-            return f"Nacht: Abgabe bis {self.night_max_w} W (SOC {soc} %)", self.night_max_w
+            floor = self._bridge_min_soc()
+            if floor is not None and soc <= floor:
+                return Msg("phase.night_min", soc=_n(soc), min=_n(floor)), 0
+            return Msg("phase.night_out", w=self.night_max_w, soc=_n(soc)), self.night_max_w
         if soc >= self.full_soc:
             self._battery_full = True
         elif soc < self.release_soc:
             self._battery_full = False
         if self._battery_full:
             # Battery stays untouched for the night: output never exceeds what PV delivers.
-            return f"Tag: Batterie voll ({soc} %) – nur PV-Durchleitung", max(round(pv), 0)
+            return Msg("phase.day_full", soc=_n(soc)), max(round(pv), 0)
         return (
-            f"Tag: Batterie lädt (Reserve {self.charge_reserve_w} W, SOC {soc} %)",
+            Msg("phase.day_charging", reserve=self.charge_reserve_w, soc=_n(soc)),
             max(round(pv - self.charge_reserve_w), 0),
         )
 
@@ -409,14 +508,14 @@ class GridController:
             return
         now = time.time()
         if now - self._last_write_t < self.min_interval_s:
-            self.last_action = "übersprungen: Mindestabstand"
+            self.last_action = Msg("act.skip_interval", "warn")
             return
 
         if self.setpoint is None:
             settings = await self._client.read_ems_settings()
             pojo = (settings or {}).get("mesSettingUpdatePojo") or {}
             if pojo.get("permPower") is None:
-                self.last_action = "übersprungen: aktueller Ausgangswert unbekannt"
+                self.last_action = Msg("act.skip_output_unknown", "warn")
                 return
             self.setpoint = int(pojo["permPower"])
             self.strategy_type = int(pojo.get("emsStrategyType") or 1)
@@ -424,53 +523,53 @@ class GridController:
         latest = STATE.latest or {}
         inv = latest.get("invPow")
         if inv is None or now - latest.get("_power_t", 0) > INV_MAX_AGE_S:
-            self.last_action = "übersprungen: keine frische Wechselrichter-Leistung"
+            self.last_action = Msg("act.skip_no_inverter", "warn")
             return
 
         cap = self.max_w
         if self.plan_enabled:
             plan = self._plan_cap(latest, now)
             if plan is None:
-                self.phase = "SOC/PV unbekannt"
-                self.last_action = "übersprungen: SOC oder PV-Leistung unbekannt"
+                self.phase = Msg("phase.unknown", "warn")
+                self.last_action = Msg("act.skip_soc_pv_unknown", "warn")
                 return
             self.phase, cap = plan[0], min(plan[1], self.max_w)
         else:
-            self.phase = "Zeitplan aus – reine Nulleinspeisung"
+            self.phase = Msg("phase.schedule_off")
 
         error = self.meter_w - self.target_w
         # The plan's cap can drop quickly (PV falls, night starts): pull down at once.
         over_cap = self.setpoint > cap and (cap == 0 or self.setpoint > cap + self.deadband_w)
         if not over_cap:
             if abs(error) <= self.deadband_w:
-                self.last_action = f"ok: Zähler {self.meter_w:.0f} W im Totband"
+                self.last_action = Msg("act.ok_deadband", "ok", meter=round(self.meter_w))
                 return
             # Needs more, but the inverter already delivers less than commanded
             # (PV/battery-limited): raising the setpoint would only wind up.
             if error > 0 and inv < self.setpoint - self.deadband_w:
-                self.last_action = f"ok: Zähler {self.meter_w:.0f} W, Wechselrichter am Limit ({inv:.0f} W)"
+                self.last_action = Msg("act.ok_limit", "ok", meter=round(self.meter_w), inv=round(inv))
                 return
 
         new = round(min(max(inv + self.gain * error, self.min_w), cap))
         if new == self.setpoint:
-            self.last_action = f"ok: Sollwert {new} W unverändert"
+            self.last_action = Msg("act.ok_unchanged", "ok", w=new)
             return
-        await self._apply(new, f"Zähler {self.meter_w:.0f} W, WR {inv:.0f} W, Grenze {cap} W")
+        await self._apply(new, Msg("why.control", meter=round(self.meter_w), inv=round(inv), cap=cap))
 
-    async def _apply(self, watts: int, why: str) -> None:
+    async def _apply(self, watts: int, why: Msg) -> None:
         if self.dry_run:
-            self.last_action = f"TROCKENLAUF: würde {watts} W setzen ({why})"
-            _LOGGER.info(self.last_action)
+            self.last_action = Msg("act.dry_run", "warn", w=watts, why=why)
+            _LOGGER.info("%s", self.last_action)
             self._last_write_t = time.time()
             return
         ok = await self._client.set_output_power(watts, self.strategy_type)
         self._last_write_t = time.time()
         if ok:
             self.setpoint = watts
-            self.last_action = f"gesetzt: {watts} W ({why})"
+            self.last_action = Msg("act.set", "ok", w=watts, why=why)
         else:
-            self.last_action = f"FEHLER beim Setzen von {watts} W ({why})"
-        _LOGGER.info(self.last_action)
+            self.last_action = Msg("act.set_failed", "error", w=watts, why=why)
+        _LOGGER.info("%s", self.last_action)
 
     async def _failsafe(self) -> None:
         """No meter sample for `meter_max_age_s`: drive to a safe output once."""
@@ -481,4 +580,4 @@ class GridController:
             "No meter sample for %.0fs: mqtt_connected=%s config_seen=%s state_topic=%s value_path=%s",
             self.meter_max_age_s, self._mqtt_connected, self._config_seen, self.state_topic, self.value_path,
         )
-        await self._apply(self.fallback_w, "Zählerwert veraltet, Failsafe")
+        await self._apply(self.fallback_w, Msg("why.failsafe"))

@@ -12,14 +12,20 @@ with the main account this login and the mobile app would kick each other out.
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
+import math
+import re
+import time
 from typing import Any
 
 import aiohttp
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.padding import PKCS7
+
+from .messages import Msg
 
 _LOGGER = logging.getLogger("sunshare.cloud")
 
@@ -32,6 +38,39 @@ COMMON_HEADERS = {
     "localeName": "en",
 }
 TIMEOUT = aiohttp.ClientTimeout(total=15)
+_NETWORK_ERRORS = (aiohttp.ClientError, asyncio.TimeoutError)
+# The app only lets the battery's discharge stop (`socMin`) go up to this value.
+DEVICE_SOC_MIN_MAX = 20
+
+
+# After a failed login the client does NOT try again for a while: hammering the login endpoint
+# locks the account ("Account locked, try again in 5 minutes") and, worse, restarting the
+# container in a crash loop would keep doing exactly that.
+LOGIN_MIN_BACKOFF_S = 300
+LOGIN_MAX_BACKOFF_S = 1800
+LOGIN_NETWORK_BACKOFF_S = 15  # unreachable backend: a short pause is enough, nothing was rejected
+_TRY_AGAIN = re.compile(r"try again in\s+(\d+)\s*(second|sec|minute|min|hour)", re.IGNORECASE)
+
+
+class SunshareLoginError(RuntimeError):
+    """The Sunshare login was rejected, or is paused after a rejection (no request was sent)."""
+
+
+def _server_wait_s(msg: str) -> int | None:
+    """"Account locked Please try again in 5 minutes" -> 300."""
+    m = _TRY_AGAIN.search(msg or "")
+    if not m:
+        return None
+    unit = m.group(2).lower()
+    return int(m.group(1)) * (3600 if unit.startswith("hour") else 60 if unit.startswith("min") else 1)
+
+
+def guest_from_env(value: str | None) -> bool:
+    """SUNSHARE_USER_GUEST: TRUE = invited/guest account (default when unset, the safe
+    mode: no device-side battery/feed-in limits are written), FALSE = main account."""
+    if value is None or not value.strip():
+        return True
+    return value.strip().lower() not in ("false", "0", "no", "off")
 
 
 class SunshareCloudClient:
@@ -42,26 +81,66 @@ class SunshareCloudClient:
         password: str,
         device_id: int | None = None,
         device_sn: str | None = None,
+        guest: bool = True,
     ) -> None:
         self._session = session
+        self.guest = guest
         self._user_account = user_account
         self._password = password
         self.device_id = device_id
         self.sn = device_sn
         self._token: str | None = None
+        self.login_error: Msg | None = None  # last login failure, shown in the UI; None = fine
+        self._login_blocked_until = 0.0
+        self._login_failures = 0
+
+    def login_status(self) -> dict[str, Any]:
+        wait = max(0, math.ceil(self._login_blocked_until - time.time()))
+        return {
+            "ok": self.login_error is None,
+            "error": self.login_error.to_dict() if self.login_error else None,
+            "retry_in_s": wait if self.login_error else None,
+        }
+
+    def _login_failed(self, message: Msg, wait_s: float) -> SunshareLoginError:
+        self._token = None
+        self.login_error = message
+        self._login_blocked_until = time.time() + wait_s
+        _LOGGER.error("%s (next attempt in %d s)", message, wait_s)
+        return SunshareLoginError(str(message))
 
     async def login(self) -> None:
+        """Raises SunshareLoginError. While a failure is being waited out no request is sent."""
+        if time.time() < self._login_blocked_until and self.login_error:
+            raise SunshareLoginError(str(self.login_error))
         url = BASE_URL + "auth/login"
         body = {"userAccount": self._user_account, "password": self._password}
-        async with self._session.post(url, json=body, headers=COMMON_HEADERS, timeout=TIMEOUT) as resp:
-            data = await resp.json(content_type=None)
+        try:
+            async with self._session.post(url, json=body, headers=COMMON_HEADERS, timeout=TIMEOUT) as resp:
+                data = await resp.json(content_type=None)
+        except _NETWORK_ERRORS as err:
+            raise self._login_failed(Msg("login.unreachable", "error", reason=str(err) or "timeout"), LOGIN_NETWORK_BACKOFF_S) from None
         if not isinstance(data, dict) or data.get("code") != 200:
-            raise RuntimeError(f"Sunshare login failed: {data}")
+            self._login_failures += 1
+            msg = str(data.get("msg")) if isinstance(data, dict) else str(data)[:200]
+            wait = _server_wait_s(msg)
+            wait = wait + 60 if wait else min(LOGIN_MAX_BACKOFF_S, LOGIN_MIN_BACKOFF_S * 2 ** (self._login_failures - 1))
+            raise self._login_failed(Msg("login.failed", "error", msg=msg), wait)
         token = (data.get("data") or {}).get("access_token")
         if not token:
-            raise RuntimeError(f"Sunshare login: no access_token in response: {data}")
+            self._login_failures += 1
+            raise self._login_failed(Msg("login.no_token", "error"), LOGIN_MIN_BACKOFF_S)
         self._token = token
+        self._login_failures, self._login_blocked_until, self.login_error = 0, 0.0, None
         _LOGGER.info("Sunshare cloud login OK")
+
+    async def _relogin(self) -> None:
+        """The token was rejected: log in again, but never raise (the reason is in `login_error`)."""
+        self._token = None
+        try:
+            await self.login()
+        except SunshareLoginError:
+            pass
 
     async def _post(self, path: str, body: dict[str, Any], extra_headers: dict[str, str] | None = None):
         if self._token is None:
@@ -97,9 +176,11 @@ class SunshareCloudClient:
                 data = await resp.json(content_type=None)
             if _is_auth_error(data):
                 _LOGGER.info("Token rejected on openRealTime, re-authenticating")
-                await self.login()
-        except aiohttp.ClientError as err:
-            _LOGGER.warning("openRealTime request failed: %s", err)
+                await self._relogin()
+        except SunshareLoginError:
+            pass  # reason is in `login_error` and was logged once
+        except _NETWORK_ERRORS as err:
+            _LOGGER.warning("openRealTime request failed: %s", err or "timeout")
 
     async def read_live_flow(self) -> dict[str, Any] | None:
         """POST the AES-encrypted systemDiagramUpdate call; returns the decrypted
@@ -111,14 +192,16 @@ class SunshareCloudClient:
                 "app/sysDeviceInfo/systemDiagramUpdate", body, extra_headers={"encchannel": "1"}
             ) as resp:
                 text = await resp.text()
-        except aiohttp.ClientError as err:
-            _LOGGER.warning("systemDiagramUpdate request failed: %s", err)
+        except SunshareLoginError:
+            return None  # reason is in `login_error` and was logged once
+        except _NETWORK_ERRORS as err:
+            _LOGGER.warning("systemDiagramUpdate request failed: %s", err or "timeout")
             return None
 
         envelope = _decode_envelope(text)
         if _is_auth_error(envelope):
             _LOGGER.info("Token rejected on systemDiagramUpdate, re-authenticating")
-            await self.login()
+            await self._relogin()
             return None
         if not isinstance(envelope, dict) or envelope.get("code") != 200:
             return None
@@ -134,12 +217,14 @@ class SunshareCloudClient:
                 "app/inveRealDataMinute/selectInveSummary", {"deviceId": self.device_id}
             ) as resp:
                 data = await resp.json(content_type=None)
-        except aiohttp.ClientError as err:
-            _LOGGER.warning("selectInveSummary request failed: %s", err)
+        except SunshareLoginError:
+            return None  # reason is in `login_error` and was logged once
+        except _NETWORK_ERRORS as err:
+            _LOGGER.warning("selectInveSummary request failed: %s", err or "timeout")
             return None
         if _is_auth_error(data):
             _LOGGER.info("Token rejected on selectInveSummary, re-authenticating")
-            await self.login()
+            await self._relogin()
             return None
         if not isinstance(data, dict) or data.get("code") != 200:
             return None
@@ -154,12 +239,14 @@ class SunshareCloudClient:
                 "app/sysDeviceInfo/queryMesSettingUpdate", {"deviceId": self.device_id}
             ) as resp:
                 data = await resp.json(content_type=None)
-        except aiohttp.ClientError as err:
-            _LOGGER.warning("queryMesSettingUpdate request failed: %s", err)
+        except SunshareLoginError:
+            return None  # reason is in `login_error` and was logged once
+        except _NETWORK_ERRORS as err:
+            _LOGGER.warning("queryMesSettingUpdate request failed: %s", err or "timeout")
             return None
         if _is_auth_error(data):
             _LOGGER.info("Token rejected on queryMesSettingUpdate, re-authenticating")
-            await self.login()
+            await self._relogin()
             return None
         if not isinstance(data, dict) or data.get("code") != 200:
             return None
@@ -182,16 +269,59 @@ class SunshareCloudClient:
             try:
                 async with await self._post("app/sysDeviceInfo/updateEmsParaById", body) as resp:
                     data = await resp.json(content_type=None)
-            except aiohttp.ClientError as err:
-                _LOGGER.warning("updateEmsParaById request failed: %s", err)
+            except SunshareLoginError:
+                return False  # reason is in `login_error` and was logged once
+            except _NETWORK_ERRORS as err:
+                _LOGGER.warning("updateEmsParaById request failed: %s", err or "timeout")
                 return False
             if _is_auth_error(data) and attempt == 1:
                 _LOGGER.info("Token rejected on updateEmsParaById, re-authenticating")
-                await self.login()
+                await self._relogin()
                 continue
             ok = isinstance(data, dict) and data.get("code") == 200 and data.get("data") is True
             if not ok:
                 _LOGGER.warning("updateEmsParaById not confirmed: %s", data)
+            return ok
+        return False
+
+    async def set_device_limits(
+        self,
+        soc_min: int | None = None,
+        soc_max: int | None = None,
+        country_max_power: int | None = None,
+    ) -> bool:
+        """POST app/sysDeviceInfo/updateEmsModeAdvanById — the battery-settings page of
+        the app (discharge stop `socMin`, charge stop `socMax`, feed-in cap
+        `countryMaxPower`). Found by disassembling the app (docs/DEVICE_NOTES.md): the body
+        is wrapped in "emsAdvanStagePojo" (not "emsModeAdvan" as read back) and must carry
+        the complete object, so the current values are read first and only the given
+        fields are replaced. Main account only: the caller checks `self.guest`."""
+        changes = {"socMin": soc_min, "socMax": soc_max, "countryMaxPower": country_max_power}
+        changes = {k: int(v) for k, v in changes.items() if v is not None}
+        if not changes:
+            return True
+        for attempt in (1, 2):
+            settings = await self.read_ems_settings()
+            current = (settings or {}).get("emsModeAdvan")
+            if not current:
+                _LOGGER.warning("updateEmsModeAdvanById skipped: current emsModeAdvan unknown")
+                return False
+            body = {"emsAdvanStagePojo": {**current, **changes, "deviceId": self.device_id}}
+            try:
+                async with await self._post("app/sysDeviceInfo/updateEmsModeAdvanById", body) as resp:
+                    data = await resp.json(content_type=None)
+            except SunshareLoginError:
+                return False  # reason is in `login_error` and was logged once
+            except _NETWORK_ERRORS as err:
+                _LOGGER.warning("updateEmsModeAdvanById request failed: %s", err or "timeout")
+                return False
+            if _is_auth_error(data) and attempt == 1:
+                _LOGGER.info("Token rejected on updateEmsModeAdvanById, re-authenticating")
+                await self._relogin()
+                continue
+            ok = isinstance(data, dict) and data.get("code") == 200 and data.get("data") is True
+            if not ok:
+                _LOGGER.warning("updateEmsModeAdvanById not confirmed: %s", data)
             return ok
         return False
 

@@ -7,7 +7,6 @@ SUNSHARE_DEVICE_SN, MQTT_HOST. See .env.example for the full list.
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import logging
 import os
@@ -15,15 +14,18 @@ import os
 import aiohttp
 from aiohttp import web
 
+from . import auth as auth_mod
+from . import spa
+from .auth import Auth
 from .env_view import describe_env
 from .grid_control import GridController
+from .messages import MsgError
 from .lan_proxy import make_app as make_lan_app
 from .models import normalize_cloud, normalize_energy_summary
 from .mqtt_publisher import MqttPublisher
 from .raw_log import RAW
 from .state import STATE
-from .sunshare_cloud import SunshareCloudClient
-from .templates import CONTROL_HTML, FLOW_HTML, INDEX_HTML, RAW_HTML
+from .sunshare_cloud import SunshareCloudClient, SunshareLoginError, guest_from_env
 
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
 _LOGGER = logging.getLogger("sunshare.main")
@@ -34,19 +36,9 @@ _LOGGER = logging.getLogger("sunshare.main")
 CHART_KEYS = ("_t", "pvPow", "pvPreal", "invPow", "batPow", "batPreal", "loadPow", "offGridPow", "exportPow", "gridPow", "meterPow", "soc")
 
 
-def _etag(html: str) -> str:
-    return '"' + hashlib.sha1(html.encode()).hexdigest()[:16] + '"'
-
-
-PAGE_ETAGS = {id(h): _etag(h) for h in (INDEX_HTML, FLOW_HTML, CONTROL_HTML, RAW_HTML)}
-
-
-def _page(request: web.Request, html: str) -> web.Response:
-    """The pages are static per release: let the browser revalidate instead of re-downloading."""
-    etag = PAGE_ETAGS[id(html)]
-    if request.headers.get("If-None-Match") == etag:
-        return web.Response(status=304, headers={"ETag": etag})
-    return web.Response(text=html, content_type="text/html", headers={"ETag": etag, "Cache-Control": "no-cache"})
+# The pre-React UI lived at these addresses; they lead to the same pages of the React app now
+# (bookmarks, and "/" as the entry point of a tunnel).
+LEGACY_REDIRECTS = {"/": "/app/", "/flow": "/app/flow", "/control": "/app/control", "/raw": "/app/raw"}
 
 
 @web.middleware
@@ -58,11 +50,16 @@ async def compress(request: web.Request, handler):
     return resp
 
 
-def make_ui_app(controller: GridController) -> web.Application:
-    app = web.Application(middlewares=[compress])
+def _redirect(target: str):
+    async def handler(request: web.Request) -> web.Response:
+        raise web.HTTPFound(target)
 
-    async def index(request: web.Request) -> web.Response:
-        return _page(request, INDEX_HTML)
+    return handler
+
+
+def make_ui_app(controller: GridController, auth: Auth | None = None, web_dir=None) -> web.Application:
+    """`auth` None = no login (LAN only). `web_dir` overrides where the built React app lives."""
+    app = web.Application(middlewares=[compress, auth_mod.make_middleware(auth)])
 
     async def get_state(request: web.Request) -> web.Response:
         return web.json_response({"mode": STATE.mode, "latest": STATE.latest})
@@ -120,19 +117,16 @@ def make_ui_app(controller: GridController) -> web.Application:
             settings = data.get("settings")
             if settings is not None and not isinstance(settings, dict):
                 raise ValueError("settings must be an object")
-            await controller.configure(enabled, dry_run, plan, settings)
+            device = data.get("device")
+            if device is not None and not isinstance(device, dict):
+                raise ValueError("device must be an object")
+            await controller.configure(enabled, dry_run, plan, settings, device)
         except (ValueError, json.JSONDecodeError) as err:
-            return web.json_response({"error": str(err)}, status=400)
+            body = {"error": str(err)}
+            if isinstance(err, MsgError):
+                body["msg"] = err.msg.to_dict()  # the UI shows the reason in its own language
+            return web.json_response(body, status=400)
         return web.json_response(controller.status())
-
-    async def flow_page(request: web.Request) -> web.Response:
-        return _page(request, FLOW_HTML)
-
-    async def control_page(request: web.Request) -> web.Response:
-        return _page(request, CONTROL_HTML)
-
-    async def raw_page(request: web.Request) -> web.Response:
-        return _page(request, RAW_HTML)
 
     async def get_raw(request: web.Request) -> web.Response:
         return web.json_response(RAW.snapshot())
@@ -167,10 +161,8 @@ def make_ui_app(controller: GridController) -> web.Application:
     async def get_env(request: web.Request) -> web.Response:
         return web.json_response(describe_env())
 
-    app.router.add_get("/", index)
-    app.router.add_get("/flow", flow_page)
-    app.router.add_get("/control", control_page)
-    app.router.add_get("/raw", raw_page)
+    for old, new in LEGACY_REDIRECTS.items():
+        app.router.add_get(old, _redirect(new))
     app.router.add_get("/api/raw", get_raw)
     app.router.add_get("/api/raw/stream", raw_stream)
     app.router.add_post("/api/raw/clear", clear_raw)
@@ -181,6 +173,8 @@ def make_ui_app(controller: GridController) -> web.Application:
     app.router.add_get("/api/history", get_history)
     app.router.add_get("/api/history/long", get_history_long)
     app.router.add_get("/api/stream", stream)
+    auth_mod.add_routes(app, auth)
+    spa.add_routes(app, web_dir)
     return app
 
 
@@ -188,17 +182,23 @@ async def keepalive_loop(client: SunshareCloudClient, interval: float) -> None:
     """Runs regardless of mode — this is what makes the device push telemetry
     at all, whether you then read it back via cloud or tap it on the LAN."""
     while True:
-        await client.open_realtime()
+        try:
+            await client.open_realtime()
+        except Exception:  # noqa: BLE001 - a background loop must never end the process
+            _LOGGER.exception("Keepalive failed")
         await asyncio.sleep(interval)
 
 
 async def cloud_poll_loop(client: SunshareCloudClient, mqtt_pub: MqttPublisher, interval: float) -> None:
     while True:
-        if STATE.mode == "cloud":
-            data = await client.read_live_flow()
-            if data:
-                reading = normalize_cloud(data, client.device_id)
-                await STATE.publish(reading, mqtt_pub)
+        try:
+            if STATE.mode == "cloud":
+                data = await client.read_live_flow()
+                if data:
+                    reading = normalize_cloud(data, client.device_id)
+                    await STATE.publish(reading, mqtt_pub)
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception("Cloud poll failed")
         await asyncio.sleep(interval)
 
 
@@ -206,9 +206,12 @@ async def energy_poll_loop(client: SunshareCloudClient, mqtt_pub: MqttPublisher,
     """Cumulative PV yield (kWh) — separate from the power-flow source above,
     runs regardless of cloud/lan display mode, needed for HA's Energy dashboard."""
     while True:
-        data = await client.read_energy_summary()
-        if data:
-            await STATE.publish(normalize_energy_summary(data), mqtt_pub)
+        try:
+            data = await client.read_energy_summary()
+            if data:
+                await STATE.publish(normalize_energy_summary(data), mqtt_pub)
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception("Energy poll failed")
         await asyncio.sleep(interval)
 
 
@@ -217,6 +220,7 @@ async def main() -> None:
     password = os.environ["SUNSHARE_PASSWORD"]
     device_id = int(os.environ["SUNSHARE_DEVICE_ID"])
     device_sn = os.environ["SUNSHARE_DEVICE_SN"]
+    guest = guest_from_env(os.environ.get("SUNSHARE_USER_GUEST"))
 
     mqtt_host = os.environ["MQTT_HOST"]
     mqtt_port = int(os.environ.get("MQTT_PORT", "1883"))
@@ -233,8 +237,13 @@ async def main() -> None:
     mqtt_pub = MqttPublisher(mqtt_host, mqtt_port, mqtt_username, mqtt_password, mqtt_base_topic, device_id)
 
     async with aiohttp.ClientSession() as session:
-        client = SunshareCloudClient(session, user_account, password, device_id, device_sn)
-        await client.login()
+        client = SunshareCloudClient(session, user_account, password, device_id, device_sn, guest)
+        try:
+            await client.login()
+        except SunshareLoginError as err:
+            # Do not exit: a crashing container is restarted and logs in again, which is exactly
+            # what locks the account. The UI shows the error; the client waits before retrying.
+            _LOGGER.error("Starting without Sunshare login: %s", err)
 
         lan_app = make_lan_app(STATE, mqtt_pub, session, device_id)
         lan_runner = web.AppRunner(lan_app)
@@ -242,13 +251,13 @@ async def main() -> None:
         await web.TCPSite(lan_runner, "0.0.0.0", lan_port).start()
 
         controller = GridController(client, mqtt_host, mqtt_port, mqtt_username, mqtt_password)
-        ui_runner = web.AppRunner(make_ui_app(controller))
+        ui_runner = web.AppRunner(make_ui_app(controller, Auth.from_env()))
         await ui_runner.setup()
         await web.TCPSite(ui_runner, "0.0.0.0", ui_port).start()
 
         _LOGGER.info(
-            "LAN listener on :%s, UI on :%s, starting mode=%s (device_id=%s, sn=%s)",
-            lan_port, ui_port, STATE.mode, device_id, device_sn,
+            "LAN listener on :%s, UI on :%s, starting mode=%s (device_id=%s, sn=%s, account=%s)",
+            lan_port, ui_port, STATE.mode, device_id, device_sn, "guest" if guest else "main",
         )
 
         await asyncio.gather(
