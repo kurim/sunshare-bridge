@@ -20,12 +20,18 @@ kompilierten Dart-Snapshot, Pfade und Klassennamen lassen sich per `strings` auf
 - **Eine aktive Session pro Account:** Ein neuer Login (App oder Skript) beendet jede andere Session dieses Accounts
   sofort (HTTP 401). Ein **eingeladener Nutzer-Account** (zweiter Account, der in der App zum Gerät eingeladen wird)
   reicht der Bridge aus – dann bleibt die Handy-App mit dem Hauptaccount eingeloggt.
+- **Login-Sperre:** Zu viele Login-Versuche sperren den Account: `{"code":500,"msg":"Account locked Please try again in 5 minutes"}`
+  (HTTP 200). Die Bridge versucht deshalb nach einem Fehlschlag nicht sofort erneut (Wartezeit aus der Meldung + 60 s,
+  sonst 5 → 10 → 20 → 30 min; bei Netzfehlern 15 s), beendet sich dabei nicht (ein Absturz mit
+  `restart: unless-stopped` würde den Login in Schleife wiederholen) und meldet den Fehler in der UI.
 - **Trigger für Live-Daten:** Das Gerät pusht nur, solange eine „Real-Time-Session“ offen ist, geöffnet per
   `POST app/sysDeviceInfo/queryOnlineStatusByDeviceIdAndOpenRealTime` mit `{"deviceId": <id>}`. Ohne regelmäßigen
   Aufruf (Keepalive, die Bridge nutzt 3 s) ist das Gerät still. Das gilt für **beide** Datenwege unten.
 - Kumulierte PV-Erzeugung (heute/gesamt): `POST app/inveRealDataMinute/selectInveSummary` (unabhängig von der
   Real-Time-Session).
 - Ausgangsleistung setzen: `updateEmsParaById` (Feld `permPower`) – wird vom Nulleinspeisungs-Regler genutzt.
+- Steuer-Einstellungen lesen: `POST app/sysDeviceInfo/queryMesSettingUpdate` (`mesSettingUpdatePojo.permPower`,
+  `emsStrategyType`, `emsModeAdvan.countryMaxPower`; siehe „Batterie-SOC-Grenzen“ unten).
 
 ## Zwei Wege zu den Live-Daten
 
@@ -79,6 +85,57 @@ Beobachtungen aus Mitschnitten (26 min, ~100–140 W PV):
   zusätzlich als eigene Sensoren bereit.
 - Die Live-Kacheln der iShareCloud-App zeigen `pvPow`/`batPow`, ihre Verlaufs-Charts die Real-Werte.
 - Tagsüber schaltet der Wechselrichter periodisch (etwa alle 33 s für ein Sample) auf Netz-Durchleitung um.
+
+## Batterie-SOC-Grenzen und `NIGHT_MIN_SOC`
+
+- **Ab Bridge-Version mit `SUNSHARE_USER_GUEST=FALSE` (Haupt-Account)** wird `NIGHT_MIN_SOC` zusätzlich als `socMin` ins
+  Gerät geschrieben (auf max. 20 % begrenzt; darüber bleibt die Bridge-Logik aktiv), `countryMaxPower` ist nur dann
+  änderbar. Als Gast (Default) gilt das Folgende unverändert. Die App-Route ist für den Gast-Account nicht geprüft.
+- **`NIGHT_MIN_SOC` ist im Gast-Modus reine Bridge-Logik** und geht nie an Cloud oder Gerät. Der Regler (`grid_control._plan_cap`)
+  setzt nachts bei `soc <= NIGHT_MIN_SOC` nur die **Ziel-Ausgangsleistung auf 0 W** (`updateEmsParaById`,
+  `permPower`). Eine geräteseitige Entladegrenze wird dabei nicht verändert. Der Schutz gilt also nur, solange der
+  Regler läuft (aktiviert, kein Trockenlauf, frischer Zählerwert) und schreiben kann.
+- Die Geräte-Einstellung „Batteriesettings“ der App liegt in der Antwort von `queryMesSettingUpdate` unter
+  `emsModeAdvan` (am eigenen Gerät bestätigt): `socMin` = Entladestopp (20), `socMax` = Ladestopp (100),
+  `countryMaxPower` (800), `adVanSetType` (1), `zeroNetworkButton` (0), `deviceId` (int), `isOnlySave` (0).
+  Laut Betreiber lässt die App für `socMin` höchstens 20 % zu; die Geräte-Entladegrenze kann also nicht über 20 %
+  gelegt werden (ein `NIGHT_MIN_SOC` > 20 muss weiter in der Bridge laufen).
+  Die Bridge wertet die Felder nicht aus. Lese-Probe: `scripts/sunshare_probe.py` (read-only, maskiert IDs).
+- Schreiben, am eigenen Gerät getestet (Werte jeweils auf den aktuellen Stand bzw. `socMin` 20 → 19 → 20 zurück):
+  - `updateEmsModeAdvanById` liefert bei 5 Body-Formen mit dem Lese-Schlüssel `emsModeAdvan` (verschachtelt, flach,
+    `deviceId` als int/str, komplette Lese-Struktur) HTTP 200 mit `{"code":500,"msg":null}` – wie schon im
+    Referenzprojekt (6 Varianten). **Ursache: falscher Wrapper-Schlüssel, siehe nächster Punkt.**
+  - `updateEmsParaById` mit `mesSettingUpdatePojo` + `emsModeAdvan` (als Geschwister oder verschachtelt) antwortet
+    `{"code":200,"data":true}`, **ändert `socMin` aber nicht** (Rücklesen zeigt weiter 20). Das Feld wird ignoriert.
+- **Lösung (blutter auf `libapp.so`, `DeviceSsPageProvider.updateStorageAdvanceEmsData`, am eigenen Gerät
+  bestätigt):** Der Body von `POST app/sysDeviceInfo/updateEmsModeAdvanById` ist nicht in `emsModeAdvan`, sondern in
+  **`emsAdvanStagePojo`** verpackt (`Map<String, Map<String, int?>>`, alle Werte int):
+
+  ```json
+  {"emsAdvanStagePojo": {"deviceId": <id>, "isOnlySave": 0, "adVanSetType": 1,
+                         "socMin": 20, "socMax": 100, "countryMaxPower": 800, "zeroNetworkButton": 0}}
+  ```
+
+  Antwort `{"code":200,"data":true}`; Rücklesen über `queryMesSettingUpdate` zeigt den neuen Wert sofort
+  (`socMin` 20 → 19 → 20 getestet, übrige Felder und `permPower` unverändert). Es muss also das komplette Objekt mit
+  den aktuellen Werten der übrigen Felder gesendet werden (vorher lesen). Das Limit `socMin` ≤ 20 % kommt von der
+  App/dem Gerät (Angabe des Betreibers), nicht getestet; `socMax` wurde nicht geschrieben.
+- `strings` auf `libapp.so` (iShareCloud 1.2.1, arm64): Die App kennt `app/sysDeviceInfo/updateEmsModeAdvanById`
+  (kein anderer Pfad mit „Advan“/„Soc“ im Namen), die Seite `EmsBatterySettingPage` und die DTO-Klasse
+  `MicroStorageEmsEmsModeAdvan` (mit `fromJson`/`toJson`; Felder wie beim Lesen: `adVanSetType`, `socMin`, `socMax`,
+  `countryMaxPower`, `zeroNetworkButton`, `deviceId`, `isOnlySave`). Weitere Einstellungs-Pfade, nicht getestet:
+  `deviceSetting`, `deviceSocketSetting`, `getMaxGrid`, `updateFristEmsSetByDeviceId`, `updateFirstEmsSetBySn`,
+  `fristEmsSetByPersonNum` (die drei letzten wirken wie Erst-Einrichtung – nicht blind gegen das Gerät testen).
+  `strings` allein verrät nicht, welcher Aufruf zur Batterie-Seite gehört; das ergab erst die Disassemblierung mit
+  [blutter](https://github.com/worawit/blutter) (Dart 3.11.5, arm64; braucht `cmake ninja-build pkg-config
+  libicu-dev libcapstone-dev python3-pyelftools python3-requests`, Aufruf `python3 blutter.py <lib/arm64-v8a> <out>`,
+  Ausgabe unter `asm/sunshare/…`).
+- Ein möglicher Grund, warum die Begrenzung über die Ausgangsleistung nicht reicht (Hypothese, ungeprüft): Die
+  Steckdose (`offGridPow`) wird unabhängig von `permPower` aus dem Akku gespeist.
+
+Quelle für den Einstieg: Recherche-Session „Night_MIN_SOC Cloud-Schreibverhalten“ (Branch
+`claude/ecstatic-albattani-pqtfx1`, `docs/NIGHT_MIN_SOC_NOTES.md`; deren Schluss „nicht schreibbar“ ist durch die
+Lösung oben überholt).
 
 ## Sackgassen und Warnungen
 
