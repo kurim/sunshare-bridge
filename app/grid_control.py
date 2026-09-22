@@ -83,7 +83,7 @@ def _in_window(minute: int, start: int, end: int) -> bool:
     return start <= minute < end if start <= end else minute >= start or minute < end
 
 
-# Battery-plan settings editable in the web UI: key -> (attribute, kind, min, max).
+# Settings editable in the web UI: key -> (attribute, kind, min, max).
 # The env vars (same names, upper case) only provide the defaults; UI changes are
 # persisted in control.json and win over the env on the next start.
 PLAN_SETTINGS: dict[str, tuple[str, str, float, float]] = {
@@ -95,6 +95,9 @@ PLAN_SETTINGS: dict[str, tuple[str, str, float, float]] = {
     "NIGHT_END": ("night_end", "time", 0, 1439),
     "NIGHT_MAX_W": ("night_max_w", "int", 0, 2000),
     "NIGHT_MIN_SOC": ("night_min_soc", "float", 0, 100),
+    # How long a meter sample stays valid (failsafe trigger and the UI's "still fresh?" cutoff);
+    # depends on how often the user's own meter reports, so it isn't a fixed default for everyone.
+    "CONTROL_METER_MAX_AGE": ("meter_max_age_s", "float", 5, 3600),
 }
 
 
@@ -242,6 +245,7 @@ class GridController:
             raise MsgError(Msg("err.release_over_full", "error"))
         for attr, value in parsed.items():
             setattr(self, attr, value)
+        STATE.meter_max_age_s = self.meter_max_age_s
 
     def _writes_allowed(self) -> bool:
         return self.enabled and not self.dry_run

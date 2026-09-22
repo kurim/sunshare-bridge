@@ -32,7 +32,7 @@ _GROUPS: list[tuple[str, str, list[tuple[str, str | None]]]] = [
     ]),
     ("meter", "Meter (MQTT)", [
         ("METER_CONFIG_TOPIC", None),
-        ("METER_STATE_TOPIC", None), ("METER_VALUE_PATH", None), ("CONTROL_METER_MAX_AGE", "180"),
+        ("METER_STATE_TOPIC", None), ("METER_VALUE_PATH", None),
     ]),
     ("controller", "Controller", [
         ("CONTROL_TARGET_W", "20"), ("CONTROL_DEADBAND_W", "25"), ("CONTROL_GAIN", "0.7"),

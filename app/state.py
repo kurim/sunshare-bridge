@@ -18,7 +18,7 @@ _LOGGER = logging.getLogger("sunshare.state")
 
 ENERGY_FILE = Path("/data/battery_energy.json")
 HISTORY_FILE = Path("/data/history.db")
-METER_MAX_AGE_S = 180  # a meter sample older than this is no longer attached to readings
+METER_MAX_AGE_S = 180  # default; overridden at runtime by the controller's CONTROL_METER_MAX_AGE setting
 DEFAULT_RETENTION_DAYS = 30
 VALID_MODES = ("cloud", "lan")
 DEFAULT_MODE = "lan"
@@ -59,6 +59,7 @@ class SharedState:
         self.lock = asyncio.Lock()
         self.meter_w: float | None = None  # external grid meter (set by the grid controller), + = import
         self.meter_t: float | None = None
+        self.meter_max_age_s: float = METER_MAX_AGE_S  # kept in sync with the controller's setting
         # Long-term history: one averaged value per minute (kept HISTORY_RETENTION_DAYS days).
         try:
             retention = max(1, int(os.environ.get("HISTORY_RETENTION_DAYS", DEFAULT_RETENTION_DAYS)))
@@ -183,12 +184,15 @@ class SharedState:
                     now, merged.get("batChargePow"), merged.get("batDischargePow"), merged.get("pvPow")
                 )
             merged["_t"] = now
-            # The grid meter reports only about once a minute: carry its last value along so the
-            # live chart and the history have a grid line (the device's own gridPow is always 0).
-            if self.meter_w is not None and self.meter_t is not None and now - self.meter_t < METER_MAX_AGE_S:
+            # The grid meter typically reports much less often than pvPow/batPow: carry its last value
+            # along (up to meter_max_age_s) so the live chart and the history have a grid line (the
+            # device's own gridPow is always 0). _meterT lets the UI show how stale that value is.
+            if self.meter_w is not None and self.meter_t is not None and now - self.meter_t < self.meter_max_age_s:
                 merged["meterPow"] = self.meter_w
+                merged["_meterT"] = self.meter_t
             else:
                 merged.pop("meterPow", None)
+                merged.pop("_meterT", None)
             if "pvPow" in reading or "batPow" in reading:
                 self.db.add(now, merged)
             if self._eff_base is None and merged.get("soc") is not None and "pvPow" in reading:

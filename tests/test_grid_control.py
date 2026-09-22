@@ -2,6 +2,7 @@ import asyncio
 
 import pytest
 
+import app.state as st
 from app.grid_control import GridController, _in_window, _parse_hm
 from app.messages import Msg, MsgError
 
@@ -35,6 +36,14 @@ def test_invalid_settings_are_rejected_without_changing_anything(bad):
     with pytest.raises(ValueError):
         asyncio.run(c.configure(settings=bad))
     assert c.settings() == before
+
+
+def test_meter_max_age_is_settable_and_kept_in_sync_with_state(isolated_data):
+    c = _controller()
+    assert c.meter_max_age_s == 180 and st.STATE.meter_max_age_s == 180
+    asyncio.run(c.configure(settings={"CONTROL_METER_MAX_AGE": 30}))
+    assert c.meter_max_age_s == 30 and st.STATE.meter_max_age_s == 30
+    assert _controller().meter_max_age_s == 30  # a new instance reads control.json
 
 
 def test_night_window_wraps_midnight():

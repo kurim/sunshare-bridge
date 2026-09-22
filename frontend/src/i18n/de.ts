@@ -44,6 +44,7 @@ export const de = {
   "ov.toGrid": "Ins Hausnetz",
   "ov.socket": "Steckdose",
   "ov.meter": "Zähler",
+  "ov.meterAge": "Zähler vor {s}",
   "ov.controller": "Regler",
   "ov.state.off": "aus",
   "ov.state.dry": "Trockenlauf",
@@ -115,7 +116,7 @@ export const de = {
   "cc.diag.plain": "(reine Zahl)",
 
   "sc.title": "Parameter & Schwellenwerte",
-  "sc.subtitle": "Tag/Nacht-Zeitfenster, Ladereserve und Tiefentladeschutz des Batterie-Plans",
+  "sc.subtitle": "Tag/Nacht-Zeitfenster, Ladereserve und Tiefentladeschutz des Batterie-Plans; dazu die Zähler-Frische",
   "sc.dirty": "ungespeichert",
   "sc.defaults": "Standard (.env)",
   "sc.revert": "Verwerfen",
@@ -143,6 +144,8 @@ export const de = {
   "field.NIGHT_MIN_SOC": "Tiefentladeschutz",
   "field.NIGHT_MIN_SOC.help": "Bei SOC ≤ diesem Wert keine Nachtabgabe",
   "field.NIGHT_MIN_SOC.helpMain": "Wird als Entladestopp ins Gerät geschrieben (max. 20 %); darüber setzt die Bridge ihn um",
+  "field.CONTROL_METER_MAX_AGE": "Zähler-Frische",
+  "field.CONTROL_METER_MAX_AGE.help": "So alt darf der letzte Zählerwert höchstens sein, bevor Regler-Notabschaltung und Anzeige ihn verwerfen – je nachdem, wie oft dein Zähler meldet",
 
   "pp.title": "Batterie-Plan Vorschau",
   "pp.subtitle": "Schwellen und Zeitfenster – auch mit ungespeicherten Änderungen",

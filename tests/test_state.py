@@ -40,8 +40,17 @@ def test_publish_attaches_fresh_meter_value_and_drops_stale_one():
     t = time.time()
     s.meter_w, s.meter_t = 450.0, t
     _publish(s, {"pvPow": 10, "soc": 30}, t + 5)
-    assert s.latest["meterPow"] == 450.0
+    assert s.latest["meterPow"] == 450.0 and s.latest["_meterT"] == t
     _publish(s, {"pvPow": 10, "soc": 30}, t + st.METER_MAX_AGE_S + 10)
+    assert "meterPow" not in s.latest and "_meterT" not in s.latest
+
+
+def test_meter_max_age_is_configurable():
+    s = st.SharedState()
+    s.meter_max_age_s = 20
+    t = time.time()
+    s.meter_w, s.meter_t = 450.0, t
+    _publish(s, {"pvPow": 10, "soc": 30}, t + 25)  # stale under the default 180 s, not under 20 s
     assert "meterPow" not in s.latest
 
 

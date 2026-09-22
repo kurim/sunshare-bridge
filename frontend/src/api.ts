@@ -37,6 +37,7 @@ export interface Reading {
   gridPow?: number | null;
   exportPow?: number | null;
   meterPow?: number | null;
+  _meterT?: number | null;
   todayEnergyKwh?: number | null;
   lifetimeEnergyKwh?: number | null;
   pvPeakTodayW?: number | null;
