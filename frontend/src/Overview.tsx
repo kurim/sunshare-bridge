@@ -41,6 +41,8 @@ export function Overview() {
   const bat = reading?.batPow ?? null;
   const levelColor = socColor(soc, Number(control?.settings.NIGHT_MIN_SOC) || undefined);
   const state = control ? (control.enabled ? (control.dry_run ? t("ov.state.dry") : t("ov.state.on")) : t("ov.state.off")) : "";
+  // Both timestamps come from the bridge, so this needs no synced clock (unlike Date.now()).
+  const meterAgeS = reading?._meterT != null && reading?._t != null ? Math.max(0, reading._t - reading._meterT) : null;
   return (
     <div className="overview-grid">
       <div className="col">
@@ -64,13 +66,15 @@ export function Overview() {
           </div>
         </section>
         <section className="tiles">
-          <Tile icon={<Icon name="sun" />} color="var(--c-pv)" label={t("ov.pv")} value={fmt(reading?.pvPow, "W")} />
+          <Tile icon={<Icon name="sun" />} color="var(--c-pv)" label={t("ov.pv")} value={fmt(reading?.pvPow, "W")}
+            hint={reading?.pvPeakTodayW != null ? t("ov.pvPeak", { peak: fmt(reading.pvPeakTodayW, "W") }) : undefined} />
           <Tile icon={<BatteryIcon soc={soc} />} color={levelColor} label={t("ov.battery")} value={fmt(bat === null ? null : Math.abs(bat), "W")}
             badge={bat === null || bat === 0 ? undefined : <FlowBadge discharging={bat > 0} text={bat > 0 ? t("ov.discharging") : t("ov.charging")} />} />
           <Tile icon={<Icon name="inverter" />} color="var(--c-inv)" label={t("ov.inverter")} value={fmt(reading?.invPow, "W")} />
           <Tile icon={<Icon name="house" />} color="var(--c-export)" label={t("ov.toGrid")} value={fmt(reading?.exportPow, "W")} />
           <Tile icon={<Icon name="plug" />} color="var(--c-socket)" label={t("ov.socket")} value={fmt(reading?.offGridPow, "W")} />
-          <Tile icon={<Icon name="gauge" />} color="var(--c-grid)" label={t("ov.meter")} value={fmt(reading?.meterPow, "W")} />
+          <Tile icon={<Icon name="gauge" />} color="var(--c-grid)" label={t("ov.meter")} value={fmt(reading?.meterPow, "W")}
+            hint={meterAgeS != null ? t("ov.meterAge", { s: fmt(meterAgeS, "s") }) : undefined} />
         </section>
 
         {control && (

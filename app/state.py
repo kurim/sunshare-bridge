@@ -18,7 +18,7 @@ _LOGGER = logging.getLogger("sunshare.state")
 
 ENERGY_FILE = Path("/data/battery_energy.json")
 HISTORY_FILE = Path("/data/history.db")
-METER_MAX_AGE_S = 180  # a meter sample older than this is no longer attached to readings
+METER_MAX_AGE_S = 180  # default; overridden at runtime by the controller's CONTROL_METER_MAX_AGE setting
 DEFAULT_RETENTION_DAYS = 30
 VALID_MODES = ("cloud", "lan")
 DEFAULT_MODE = "lan"
@@ -59,6 +59,7 @@ class SharedState:
         self.lock = asyncio.Lock()
         self.meter_w: float | None = None  # external grid meter (set by the grid controller), + = import
         self.meter_t: float | None = None
+        self.meter_max_age_s: float = METER_MAX_AGE_S  # kept in sync with the controller's setting
         # Long-term history: one averaged value per minute (kept HISTORY_RETENTION_DAYS days).
         try:
             retention = max(1, int(os.environ.get("HISTORY_RETENTION_DAYS", DEFAULT_RETENTION_DAYS)))
@@ -71,6 +72,7 @@ class SharedState:
         self._bat_discharge_kwh = float(saved.get("discharge_kwh", 0.0))
         self._pv_total_kwh = float(saved.get("pv_total_kwh", 0.0))
         self._pv_today_kwh = float(saved.get("pv_today_kwh", 0.0))
+        self._pv_peak_today_w = float(saved.get("pv_peak_today_w", 0.0))
         self._pv_day = saved.get("pv_day") or time.strftime("%Y-%m-%d")
         # Reference point for the battery efficiency: SOC + counter readings when recording
         # began. Stored energy changes with SOC, so efficiency is only meaningful relative to it.
@@ -109,6 +111,7 @@ class SharedState:
                         "discharge_kwh": self._bat_discharge_kwh,
                         "pv_total_kwh": self._pv_total_kwh,
                         "pv_today_kwh": self._pv_today_kwh,
+                        "pv_peak_today_w": self._pv_peak_today_w,
                         "pv_day": self._pv_day,
                         "eff_base": self._eff_base,
                     }
@@ -128,11 +131,14 @@ class SharedState:
         device has no such counters of its own (see `_derive_battery_flow`;
         selectInveSummary's PV yield turned out to stay at 0 for this device),
         and this replaces needing "Integration - Riemann sum" helpers in HA.
-        PV also gets a per-day counter that resets at local midnight (TZ env)."""
+        PV also gets a per-day counter and peak power, both resetting at local midnight (TZ env)."""
         today = time.strftime("%Y-%m-%d", time.localtime(now))
         if today != self._pv_day:
             self._pv_day = today
             self._pv_today_kwh = 0.0
+            self._pv_peak_today_w = 0.0
+        if pv_pow is not None and pv_pow > self._pv_peak_today_w:
+            self._pv_peak_today_w = pv_pow
         if self._last_t is not None:
             gap_s = now - self._last_t
             if 0 < gap_s <= MAX_INTEGRATION_GAP_S:
@@ -178,12 +184,15 @@ class SharedState:
                     now, merged.get("batChargePow"), merged.get("batDischargePow"), merged.get("pvPow")
                 )
             merged["_t"] = now
-            # The grid meter reports only about once a minute: carry its last value along so the
-            # live chart and the history have a grid line (the device's own gridPow is always 0).
-            if self.meter_w is not None and self.meter_t is not None and now - self.meter_t < METER_MAX_AGE_S:
+            # The grid meter typically reports much less often than pvPow/batPow: carry its last value
+            # along (up to meter_max_age_s) so the live chart and the history have a grid line (the
+            # device's own gridPow is always 0). _meterT lets the UI show how stale that value is.
+            if self.meter_w is not None and self.meter_t is not None and now - self.meter_t < self.meter_max_age_s:
                 merged["meterPow"] = self.meter_w
+                merged["_meterT"] = self.meter_t
             else:
                 merged.pop("meterPow", None)
+                merged.pop("_meterT", None)
             if "pvPow" in reading or "batPow" in reading:
                 self.db.add(now, merged)
             if self._eff_base is None and merged.get("soc") is not None and "pvPow" in reading:
@@ -202,6 +211,7 @@ class SharedState:
                 merged["_effBaseT"] = self._eff_base["t"]
             merged["pvEnergyTodayKwh"] = round(self._pv_today_kwh, 4)
             merged["pvEnergyTotalKwh"] = round(self._pv_total_kwh, 4)
+            merged["pvPeakTodayW"] = round(self._pv_peak_today_w, 1)
             merged["batChargeEnergyKwh"] = round(self._bat_charge_kwh, 4)
             merged["batDischargeEnergyKwh"] = round(self._bat_discharge_kwh, 4)
             self.latest = merged

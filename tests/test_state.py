@@ -40,8 +40,17 @@ def test_publish_attaches_fresh_meter_value_and_drops_stale_one():
     t = time.time()
     s.meter_w, s.meter_t = 450.0, t
     _publish(s, {"pvPow": 10, "soc": 30}, t + 5)
-    assert s.latest["meterPow"] == 450.0
+    assert s.latest["meterPow"] == 450.0 and s.latest["_meterT"] == t
     _publish(s, {"pvPow": 10, "soc": 30}, t + st.METER_MAX_AGE_S + 10)
+    assert "meterPow" not in s.latest and "_meterT" not in s.latest
+
+
+def test_meter_max_age_is_configurable():
+    s = st.SharedState()
+    s.meter_max_age_s = 20
+    t = time.time()
+    s.meter_w, s.meter_t = 450.0, t
+    _publish(s, {"pvPow": 10, "soc": 30}, t + 25)  # stale under the default 180 s, not under 20 s
     assert "meterPow" not in s.latest
 
 
@@ -53,6 +62,20 @@ def test_energy_is_integrated_and_persisted(isolated_data):
     assert abs(s.latest["batDischargeEnergyKwh"] - 1000 / 1000 * 20 / 3600) < 1e-3
     saved = json.loads((isolated_data / "battery_energy.json").read_text())
     assert saved["discharge_kwh"] > 0 and saved["eff_base"]["soc"] == 50
+
+
+def test_pv_peak_today_tracks_max_and_resets_at_midnight(isolated_data):
+    s = st.SharedState()
+    t = time.time()
+    _publish(s, {"pvPow": 500, "batPow": 0, "soc": 50}, t)
+    _publish(s, {"pvPow": 800, "batPow": 0, "soc": 50}, t + 10)
+    _publish(s, {"pvPow": 300, "batPow": 0, "soc": 50}, t + 20)
+    assert s.latest["pvPeakTodayW"] == 800
+    saved = json.loads((isolated_data / "battery_energy.json").read_text())
+    assert saved["pv_peak_today_w"] == 800
+    s._pv_day = "2000-01-01"  # force a day change on the next publish
+    _publish(s, {"pvPow": 120, "batPow": 0, "soc": 50}, t + 30)
+    assert s.latest["pvPeakTodayW"] == 120
 
 
 def test_lan_payload_is_normalised_including_real_values():
