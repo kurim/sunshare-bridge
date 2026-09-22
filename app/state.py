@@ -71,6 +71,7 @@ class SharedState:
         self._bat_discharge_kwh = float(saved.get("discharge_kwh", 0.0))
         self._pv_total_kwh = float(saved.get("pv_total_kwh", 0.0))
         self._pv_today_kwh = float(saved.get("pv_today_kwh", 0.0))
+        self._pv_peak_today_w = float(saved.get("pv_peak_today_w", 0.0))
         self._pv_day = saved.get("pv_day") or time.strftime("%Y-%m-%d")
         # Reference point for the battery efficiency: SOC + counter readings when recording
         # began. Stored energy changes with SOC, so efficiency is only meaningful relative to it.
@@ -109,6 +110,7 @@ class SharedState:
                         "discharge_kwh": self._bat_discharge_kwh,
                         "pv_total_kwh": self._pv_total_kwh,
                         "pv_today_kwh": self._pv_today_kwh,
+                        "pv_peak_today_w": self._pv_peak_today_w,
                         "pv_day": self._pv_day,
                         "eff_base": self._eff_base,
                     }
@@ -128,11 +130,14 @@ class SharedState:
         device has no such counters of its own (see `_derive_battery_flow`;
         selectInveSummary's PV yield turned out to stay at 0 for this device),
         and this replaces needing "Integration - Riemann sum" helpers in HA.
-        PV also gets a per-day counter that resets at local midnight (TZ env)."""
+        PV also gets a per-day counter and peak power, both resetting at local midnight (TZ env)."""
         today = time.strftime("%Y-%m-%d", time.localtime(now))
         if today != self._pv_day:
             self._pv_day = today
             self._pv_today_kwh = 0.0
+            self._pv_peak_today_w = 0.0
+        if pv_pow is not None and pv_pow > self._pv_peak_today_w:
+            self._pv_peak_today_w = pv_pow
         if self._last_t is not None:
             gap_s = now - self._last_t
             if 0 < gap_s <= MAX_INTEGRATION_GAP_S:
@@ -202,6 +207,7 @@ class SharedState:
                 merged["_effBaseT"] = self._eff_base["t"]
             merged["pvEnergyTodayKwh"] = round(self._pv_today_kwh, 4)
             merged["pvEnergyTotalKwh"] = round(self._pv_total_kwh, 4)
+            merged["pvPeakTodayW"] = round(self._pv_peak_today_w, 1)
             merged["batChargeEnergyKwh"] = round(self._bat_charge_kwh, 4)
             merged["batDischargeEnergyKwh"] = round(self._bat_discharge_kwh, 4)
             self.latest = merged

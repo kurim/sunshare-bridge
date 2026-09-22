@@ -33,6 +33,7 @@ _SENSORS: list[tuple[str, str, str, str | None, str | None, str | None]] = [
     ("battery_soc", "Battery SOC", "soc", "%", "battery", "measurement"),
     ("pv_energy_today", "PV Energy Today", "todayEnergyKwh", "kWh", "energy", "total_increasing"),
     ("pv_energy_lifetime", "PV Energy Lifetime", "lifetimeEnergyKwh", "kWh", "energy", "total_increasing"),
+    ("pv_power_peak_today", "PV Power Peak Today", "pvPeakTodayW", "W", "power", "measurement"),
     ("pv_energy_today_bridge", "PV Energy Today (Bridge)", "pvEnergyTodayKwh", "kWh", "energy", "total_increasing"),
     ("pv_energy_total_bridge", "PV Energy Total (Bridge)", "pvEnergyTotalKwh", "kWh", "energy", "total_increasing"),
     ("battery_charge_energy", "Battery Charge Energy", "batChargeEnergyKwh", "kWh", "energy", "total_increasing"),

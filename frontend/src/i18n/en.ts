@@ -36,6 +36,7 @@ export const en: Messages = {
 
   "ov.soc": "State of charge",
   "ov.pv": "PV",
+  "ov.pvPeak": "Today's peak {peak}",
   "ov.battery": "Battery",
   "ov.charging": "charging",
   "ov.discharging": "discharging",

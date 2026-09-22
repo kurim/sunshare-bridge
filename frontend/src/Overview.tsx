@@ -64,7 +64,8 @@ export function Overview() {
           </div>
         </section>
         <section className="tiles">
-          <Tile icon={<Icon name="sun" />} color="var(--c-pv)" label={t("ov.pv")} value={fmt(reading?.pvPow, "W")} />
+          <Tile icon={<Icon name="sun" />} color="var(--c-pv)" label={t("ov.pv")} value={fmt(reading?.pvPow, "W")}
+            hint={reading?.pvPeakTodayW != null ? t("ov.pvPeak", { peak: fmt(reading.pvPeakTodayW, "W") }) : undefined} />
           <Tile icon={<BatteryIcon soc={soc} />} color={levelColor} label={t("ov.battery")} value={fmt(bat === null ? null : Math.abs(bat), "W")}
             badge={bat === null || bat === 0 ? undefined : <FlowBadge discharging={bat > 0} text={bat > 0 ? t("ov.discharging") : t("ov.charging")} />} />
           <Tile icon={<Icon name="inverter" />} color="var(--c-inv)" label={t("ov.inverter")} value={fmt(reading?.invPow, "W")} />

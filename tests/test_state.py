@@ -55,6 +55,20 @@ def test_energy_is_integrated_and_persisted(isolated_data):
     assert saved["discharge_kwh"] > 0 and saved["eff_base"]["soc"] == 50
 
 
+def test_pv_peak_today_tracks_max_and_resets_at_midnight(isolated_data):
+    s = st.SharedState()
+    t = time.time()
+    _publish(s, {"pvPow": 500, "batPow": 0, "soc": 50}, t)
+    _publish(s, {"pvPow": 800, "batPow": 0, "soc": 50}, t + 10)
+    _publish(s, {"pvPow": 300, "batPow": 0, "soc": 50}, t + 20)
+    assert s.latest["pvPeakTodayW"] == 800
+    saved = json.loads((isolated_data / "battery_energy.json").read_text())
+    assert saved["pv_peak_today_w"] == 800
+    s._pv_day = "2000-01-01"  # force a day change on the next publish
+    _publish(s, {"pvPow": 120, "batPow": 0, "soc": 50}, t + 30)
+    assert s.latest["pvPeakTodayW"] == 120
+
+
 def test_lan_payload_is_normalised_including_real_values():
     raw = {"pvPow": 0, "pv2Pow": 24, "pvPreal": 24, "batPreal": -3, "invPreal": -1, "offGridPow": 5, "soc": 18, "extra": 1}
     r = normalize_lan(raw, 7)

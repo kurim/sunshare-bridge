@@ -36,6 +36,7 @@ export const de = {
 
   "ov.soc": "Ladezustand",
   "ov.pv": "PV",
+  "ov.pvPeak": "Tageshöchstwert {peak}",
   "ov.battery": "Batterie",
   "ov.charging": "lädt",
   "ov.discharging": "entlädt",
