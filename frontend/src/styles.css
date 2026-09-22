@@ -287,7 +287,7 @@ h2.with-icon .icon { width: 1.25rem; height: 1.25rem; color: var(--accent); }
 }
 
 /* ---- energy flow diagram ---- */
-.energy-flow { position: relative; width: 100%; max-width: 38rem; margin: 0 auto; aspect-ratio: 400 / 440; container-type: inline-size; }
+.energy-flow { position: relative; width: 100%; max-width: 38rem; margin: 0 auto; aspect-ratio: 400 / 430; container-type: inline-size; }
 .energy-flow > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .ef-track { fill: none; stroke: var(--line); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
 .ef-core { fill: none; stroke: var(--lc); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; opacity: .9; }

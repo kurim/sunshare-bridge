@@ -9,27 +9,29 @@ import { BatteryIcon, Icon } from "./Icons";
 
 const ACTIVE_W = 5; // below this a line counts as idle (sensor noise)
 
-// The diagram is drawn on a 400 x 440 board; nodes are positioned in percent of it, lines in board units.
+// The diagram is drawn on a 400 x 430 board; nodes are positioned in percent of it, lines in board units.
+// No top margin (the solar node sits flush at y=0) so it lines up with the card next to it; a 10-unit
+// margin is kept on the other three sides.
 const NODE = {
-  solar: { x: 10, y: 10, w: 380, h: 90 },
-  grid: { x: 10, y: 140, w: 140, h: 160 },
-  battery: { x: 250, y: 140, w: 140, h: 160 },
-  home: { x: 10, y: 340, w: 380, h: 90 },
+  solar: { x: 10, y: 0, w: 380, h: 90 },
+  grid: { x: 10, y: 130, w: 140, h: 160 },
+  battery: { x: 250, y: 130, w: 140, h: 160 },
+  home: { x: 10, y: 330, w: 380, h: 90 },
 };
 const pos = (n: { x: number; y: number; w: number; h: number }): CSSProperties => ({
-  left: `${n.x / 4}%`, top: `${n.y / 4.4}%`, width: `${n.w / 4}%`, height: `${n.h / 4.4}%`,
+  left: `${n.x / 4}%`, top: `${n.y / 4.3}%`, width: `${n.w / 4}%`, height: `${n.h / 4.3}%`,
 });
 
 // Every pair of nodes has its own pipe, so each node has three connections (one to each of the others) and
 // you see where the energy comes from and where it goes. Each pipe is drawn from the first to the second
 // node; the pulses run that way ("forward") or, for `reverse`, the other way.
 const LANE = {
-  pvHome: "M200 100 V340",
-  pvBat: "M214 100 V165 Q214 185 234 185 H250",
-  pvGrid: "M186 100 V165 Q186 185 166 185 H150",
-  batHome: "M250 255 H234 Q214 255 214 275 V340",
-  gridHome: "M150 255 H166 Q186 255 186 275 V340",
-  batGrid: "M250 220 H150", // forward = battery feeds the grid, reverse = the grid charges the battery
+  pvHome: "M200 90 V330",
+  pvBat: "M214 90 V155 Q214 175 234 175 H250",
+  pvGrid: "M186 90 V155 Q186 175 166 175 H150",
+  batHome: "M250 245 H234 Q214 245 214 265 V330",
+  gridHome: "M150 245 H166 Q186 245 186 265 V330",
+  batGrid: "M250 210 H150", // forward = battery feeds the grid, reverse = the grid charges the battery
 } as const;
 
 interface Lane { d: string; watts: number; color: string; reverse?: boolean }
@@ -79,7 +81,7 @@ export function EnergyFlow({ reading, control }: { reading: Reading | null; cont
     <div>
     <div className="energy-flow" role="img"
       aria-label={t("fd.aria", { pv: fmt(pv, "W"), grid: fmt(meter, "W"), bat: fmt(Math.abs(bat), "W"), soc: fmt(soc, "%"), home: fmt(home, "W") })}>
-      <svg viewBox="0 0 400 440" aria-hidden="true">
+      <svg viewBox="0 0 400 430" aria-hidden="true">
         {lanes.map((l) => <path key={l.d} d={l.d} className="ef-track" />)}
         {lanes.filter((l) => l.watts >= ACTIVE_W).map((l) => <Lit key={l.d} {...l} />)}
       </svg>
