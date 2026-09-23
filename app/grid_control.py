@@ -101,8 +101,8 @@ PLAN_SETTINGS: dict[str, tuple[str, str, float, float]] = {
     # depends on how often the user's own meter reports, so it isn't a fixed default for everyone.
     "CONTROL_METER_MAX_AGE": ("meter_max_age_s", "float", 5, 3600),
     # Output while the meter is stale (see _failsafe): 0 is only ever "safe" for a house with no
-    # baseline load of its own. _failsafe still clamps this to the battery plan's own cap, so it's
-    # a ceiling to set for your house, not a value that bypasses day/night/SOC logic.
+    # baseline load of its own. Applied as set, except _failsafe still won't push it past the
+    # night's SOC floor/ceiling - that protection holds even without a live PV reading.
     "CONTROL_FALLBACK_W": ("fallback_w", "int", 0, 2000),
 }
 
@@ -497,18 +497,28 @@ class GridController:
             except Exception:
                 _LOGGER.exception("Grid control step failed")
 
+    def _night_cap(self, soc: float, now: float) -> tuple[Msg, int] | None:
+        """(phase message, max output watts) if `now` falls in the night window, else None. Split out of
+        `_plan_cap` so the failsafe (no live PV to size a day cap from) can still apply the SOC floor and
+        the night ceiling - the one part of the plan that's a hard safety/battery-health rule, not just
+        headroom bookkeeping for the closed loop."""
+        lt = time.localtime(now)
+        if not _in_window(lt.tm_hour * 60 + lt.tm_min, self.night_start, self.night_end):
+            return None
+        floor = self._bridge_min_soc()
+        if floor is not None and soc <= floor:
+            return Msg("phase.night_min", soc=_n(soc), min=_n(floor)), 0
+        return Msg("phase.night_out", w=self.night_max_w, soc=_n(soc)), self.night_max_w
+
     def _plan_cap(self, latest: dict[str, Any], now: float) -> tuple[Msg, int] | None:
         """(phase message, max output watts) for the current time/SOC/PV, or None if
         SOC or PV power are unknown (then nothing is changed)."""
         soc, pv = latest.get("soc"), latest.get("pvPow")
         if soc is None or pv is None:
             return None
-        lt = time.localtime(now)
-        if _in_window(lt.tm_hour * 60 + lt.tm_min, self.night_start, self.night_end):
-            floor = self._bridge_min_soc()
-            if floor is not None and soc <= floor:
-                return Msg("phase.night_min", soc=_n(soc), min=_n(floor)), 0
-            return Msg("phase.night_out", w=self.night_max_w, soc=_n(soc)), self.night_max_w
+        night = self._night_cap(soc, now)
+        if night is not None:
+            return night
         if soc >= self.full_soc:
             self._battery_full = True
         elif soc < self.release_soc:
@@ -624,9 +634,10 @@ class GridController:
 
     async def _failsafe(self) -> None:
         """No meter sample for `meter_max_age_s`: drive to a safe output once. `fallback_w` (UI-editable,
-        default 0) is a ceiling the user sets for their own house, not a value applied blindly - clamp it
-        to the battery plan's own cap for right now (0 at night below the SOC floor, PV minus the charge
-        reserve during the day, etc.) so it can't override that just because the meter went quiet."""
+        default 0) is applied as configured - it's the ceiling the user has already decided is safe for
+        their house's own baseline load, blind or not. The one thing it can't override is the night's SOC
+        floor/ceiling (`_night_cap`): that's battery-health protection, not headroom bookkeeping for the
+        closed loop, so it still applies with no live PV to size a day cap from."""
         if not self.enabled or self._failsafe_active:
             return
         self._failsafe_active = True
@@ -635,8 +646,9 @@ class GridController:
             self.meter_max_age_s, self._mqtt_connected, self._config_seen, self.state_topic, self.value_path,
         )
         watts = self.fallback_w
-        if self.plan_enabled:
-            plan = self._plan_cap(STATE.latest or {}, time.time())
-            if plan is not None:
-                watts = min(watts, plan[1])
+        soc = (STATE.latest or {}).get("soc")
+        if self.plan_enabled and soc is not None:
+            night = self._night_cap(soc, time.time())
+            if night is not None:
+                watts = min(watts, night[1])
         await self._apply(watts, Msg("why.failsafe"))
