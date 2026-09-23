@@ -1,5 +1,5 @@
 name: Sunshare Bridge
-version: "1.0.2"
+version: "1.0.3"
 slug: sunshare_bridge
 description: >-
   Live-Daten, Verlauf und Nulleinspeisung für Sunshare-Mikro-Wechselrichter mit Batterie:
@@ -36,6 +36,7 @@ options:
   UI_USER: ""
   UI_PASSWORD: ""
   DATA_SOURCE: lan
+  LOG_LEVEL: INFO
   KEEPALIVE_INTERVAL: 3
   CLOUD_POLL_INTERVAL: 2
   ENERGY_POLL_INTERVAL: 60
@@ -74,6 +75,7 @@ schema:
   UI_USER: str?
   UI_PASSWORD: password?
   DATA_SOURCE: "list(lan|cloud)"
+  LOG_LEVEL: "list(DEBUG|INFO|WARNING|ERROR)"
   KEEPALIVE_INTERVAL: float
   CLOUD_POLL_INTERVAL: float
   ENERGY_POLL_INTERVAL: float

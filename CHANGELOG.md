@@ -3,7 +3,7 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
-## [Unreleased]
+## [1.0.3] - 2026-09-23
 
 ### Bridge
 
@@ -11,6 +11,8 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Forma
   Telemetrie-Push alle ~3 s und UI-Polling war das deutlich mehr als die eigenen, aussagekräftigen
   INFO-Zeilen. Einzelne Probleme bleiben über die jeweiligen Handler (z. B. Raw-Log) oder
   `LOG_LEVEL=DEBUG` sichtbar.
+- `LOG_LEVEL` (bestand schon im Code) steht jetzt auch in `.env.example` und als Add-on-Option –
+  `WARNING`/`ERROR` zeigen nur noch Probleme.
 
 ### Home Assistant
 

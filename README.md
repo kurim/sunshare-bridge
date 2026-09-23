@@ -236,6 +236,7 @@ Alles über `.env` (Vorlage: [`.env.example`](.env.example)). Wichtigste Variabl
 | `CONTROL_*` | Regelparameter (Ziel, Totband, Verstärkung, Grenzen, Failsafe) |
 | Batterie-Plan (`BATTERY_CAPACITY_WH`, `CHARGE_*`, `NIGHT_*`), `CONTROL_METER_MAX_AGE` (Zähler-Frische) und `CONTROL_FALLBACK_W` (Failsafe-Ausgabe) | Defaults, im UI überschreibbar |
 | `TZ` | Zeitzone (Default `Europe/Berlin`) – bestimmt u. a. den Tageswechsel des PV-Tageszählers |
+| `LOG_LEVEL` | `DEBUG`/`INFO` (Default)/`WARNING`/`ERROR` |
 
 Persistente Daten liegen in `./data` (Energiezähler, Verlauf, Regler-Einstellungen). Ändern sich `UI_PORT`/`LAN_PORT`,
 müssen die Port-Zuordnungen in `docker-compose.yml` angepasst werden.
