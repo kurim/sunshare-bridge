@@ -216,8 +216,10 @@ dass der Zähler ~0 W zeigt. Er ist **aus und im Trockenlauf**, bis du ihn im UI
    Basiswert neu.
 5. **Failsafe (`CONTROL_FALLBACK_W`, im UI einstellbar):** Meldet der Zähler zu lange nichts (`CONTROL_METER_MAX_AGE`),
    setzt der Regler diesen Sollwert – als Obergrenze für die Grundlast deines Hauses, die du selbst für sicher hältst.
-   Einzige Ausnahme: nachts bleibt der Tiefentladeschutz/die Nacht-Deckelung (`NIGHT_MIN_SOC`/`NIGHT_MAX_W`) davor,
-   ohne Zählerwert nicht mehr aus dem Akku abzugeben als vorgesehen.
+   Bei aktivem Batterie-Plan gilt zusätzlich dieselbe Phasen-Deckelung wie im laufenden Betrieb: tagsüber nie mehr als
+   PV minus Ladereserve (kein Aus-dem-Akku-Abgeben während der Lade-Sperrfrist, auch wenn der Zähler ausfällt), ist
+   die Batterie voll nie mehr als die aktuelle PV-Leistung, nachts der übliche Tiefentladeschutz/die Nacht-Deckelung
+   (`NIGHT_MIN_SOC`/`NIGHT_MAX_W`). Ohne aktuellen SOC/PV-Wert (z. B. direkt nach dem Start) ist die Obergrenze 0.
 
 ## Konfiguration
 
