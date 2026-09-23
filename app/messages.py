@@ -35,6 +35,7 @@ EN: dict[str, str] = {
     "act.dry_run": "DRY RUN: would set {w} W ({why})",
     "act.set": "set: {w} W ({why})",
     "act.set_failed": "FAILED to set {w} W ({why})",
+    "act.export_guard": "feed-in {meter} W at the meter – charge reserve raised {old} → {new} W",
     "why.control": "meter {meter} W, inverter {inv} W, limit {cap} W",
     "why.failsafe": "meter value stale, failsafe",
     # device limits (main account)

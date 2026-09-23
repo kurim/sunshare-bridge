@@ -322,6 +322,7 @@ export const de = {
   "msg.act.ok_unchanged": "ok: Sollwert {w} W unverändert",
   "msg.act.dry_run": "TROCKENLAUF: würde {w} W setzen ({why})",
   "msg.act.set": "gesetzt: {w} W ({why})",
+  "msg.act.export_guard": "Einspeisung {meter} W am Zähler – Ladereserve angehoben {old} → {new} W",
   "msg.act.set_failed": "FEHLER beim Setzen von {w} W ({why})",
   "msg.why.control": "Zähler {meter} W, WR {inv} W, Grenze {cap} W",
   "msg.why.failsafe": "Zählerwert veraltet, Failsafe",

@@ -322,6 +322,7 @@ export const en: Messages = {
   "msg.act.ok_unchanged": "ok: setpoint {w} W unchanged",
   "msg.act.dry_run": "DRY RUN: would set {w} W ({why})",
   "msg.act.set": "set: {w} W ({why})",
+  "msg.act.export_guard": "feed-in {meter} W at the meter – charge reserve raised {old} → {new} W",
   "msg.act.set_failed": "FAILED to set {w} W ({why})",
   "msg.why.control": "meter {meter} W, inverter {inv} W, limit {cap} W",
   "msg.why.failsafe": "meter value stale, failsafe",

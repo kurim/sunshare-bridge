@@ -507,9 +507,27 @@ class GridController:
             max(round(pv - self.charge_reserve_w), 0),
         )
 
+    def _guard_against_export(self, meter_w: float) -> None:
+        """Feed-in at the meter (negative reading) means the day's charge reserve is too low: too much
+        PV is left over for output instead of charging. Raise the reserve right away, by exactly the
+        export seen, so `_plan_cap` leaves that much less headroom for output next cycle. This runs
+        before the write-rate-limit below since it only changes the bridge's own plan, not the device."""
+        if meter_w >= 0:
+            return
+        reserve_max = PLAN_SETTINGS["CHARGE_RESERVE_W"][3]
+        new_reserve = min(round(self.charge_reserve_w - meter_w), int(reserve_max))
+        if new_reserve == self.charge_reserve_w:
+            return
+        old = self.charge_reserve_w
+        self.charge_reserve_w = new_reserve
+        self._save()
+        self.last_action = Msg("act.export_guard", "warn", meter=round(meter_w), old=old, new=new_reserve)
+        _LOGGER.warning("%s", self.last_action)
+
     async def _step(self) -> None:
         if not self.enabled or self.meter_w is None:
             return
+        self._guard_against_export(self.meter_w)
         now = time.time()
         if now - self._last_write_t < self.min_interval_s:
             self.last_action = Msg("act.skip_interval", "warn")

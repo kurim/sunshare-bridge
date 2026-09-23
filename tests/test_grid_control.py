@@ -46,6 +46,26 @@ def test_meter_max_age_is_settable_and_kept_in_sync_with_state(isolated_data):
     assert _controller().meter_max_age_s == 30  # a new instance reads control.json
 
 
+def test_export_raises_the_charge_reserve_and_persists_it(isolated_data):
+    c = _controller()
+    before = c.charge_reserve_w
+    c._guard_against_export(-50.0)
+    assert c.charge_reserve_w == before + 50
+    assert _controller().charge_reserve_w == before + 50  # a new instance reads control.json
+
+
+def test_export_guard_is_capped_and_a_no_op_without_export():
+    c = _controller()
+    c.charge_reserve_w = 1980
+    c._guard_against_export(-500.0)
+    assert c.charge_reserve_w == 2000  # PLAN_SETTINGS' own CHARGE_RESERVE_W ceiling
+
+    unchanged = _controller()
+    unchanged._guard_against_export(0.0)
+    unchanged._guard_against_export(5.0)
+    assert unchanged.charge_reserve_w == unchanged.settings()["CHARGE_RESERVE_W"]
+
+
 def test_night_window_wraps_midnight():
     start, end = _parse_hm("23:00"), _parse_hm("06:00")
     assert _in_window(_parse_hm("23:30"), start, end)

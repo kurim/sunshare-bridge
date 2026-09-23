@@ -170,6 +170,9 @@ dass der Zähler ~0 W zeigt. Er ist **aus und im Trockenlauf**, bis du ihn im UI
 3. **Batterie-Plan** (optional): tagsüber lädt die Batterie mit einer Reserve (`CHARGE_RESERVE_W`) bis
    `CHARGE_FULL_SOC`, danach wird nur PV durchgereicht; nachts wird bis `NIGHT_MAX_W` abgegeben, solange der SOC über
    `NIGHT_MIN_SOC` liegt. Alle Parameter sind im UI einstellbar; die `.env`-Werte sind nur die Defaults.
+4. **Einspeise-Schutz:** Meldet der Zähler eine Einspeisung (negativer Wert), hebt der Regler `CHARGE_RESERVE_W`
+   sofort um genau diesen Betrag an (Obergrenze 2000 W), damit die nächste Runde mehr PV der Batterie statt der
+   Ausgabe zuweist. Die Anhebung bleibt bestehen (in `data/control.json`), bis du die Reserve im UI wieder senkst.
 
 ## Konfiguration
 
