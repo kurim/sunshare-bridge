@@ -100,6 +100,10 @@ PLAN_SETTINGS: dict[str, tuple[str, str, float, float]] = {
     # How long a meter sample stays valid (failsafe trigger and the UI's "still fresh?" cutoff);
     # depends on how often the user's own meter reports, so it isn't a fixed default for everyone.
     "CONTROL_METER_MAX_AGE": ("meter_max_age_s", "float", 5, 3600),
+    # Output while the meter is stale (see _failsafe): 0 is only ever "safe" for a house with no
+    # baseline load of its own. _failsafe still clamps this to the battery plan's own cap, so it's
+    # a ceiling to set for your house, not a value that bypasses day/night/SOC logic.
+    "CONTROL_FALLBACK_W": ("fallback_w", "int", 0, 2000),
 }
 
 
@@ -619,7 +623,10 @@ class GridController:
         _LOGGER.info("%s", self.last_action)
 
     async def _failsafe(self) -> None:
-        """No meter sample for `meter_max_age_s`: drive to a safe output once."""
+        """No meter sample for `meter_max_age_s`: drive to a safe output once. `fallback_w` (UI-editable,
+        default 0) is a ceiling the user sets for their own house, not a value applied blindly - clamp it
+        to the battery plan's own cap for right now (0 at night below the SOC floor, PV minus the charge
+        reserve during the day, etc.) so it can't override that just because the meter went quiet."""
         if not self.enabled or self._failsafe_active:
             return
         self._failsafe_active = True
@@ -627,4 +634,9 @@ class GridController:
             "No meter sample for %.0fs: mqtt_connected=%s config_seen=%s state_topic=%s value_path=%s",
             self.meter_max_age_s, self._mqtt_connected, self._config_seen, self.state_topic, self.value_path,
         )
-        await self._apply(self.fallback_w, Msg("why.failsafe"))
+        watts = self.fallback_w
+        if self.plan_enabled:
+            plan = self._plan_cap(STATE.latest or {}, time.time())
+            if plan is not None:
+                watts = min(watts, plan[1])
+        await self._apply(watts, Msg("why.failsafe"))

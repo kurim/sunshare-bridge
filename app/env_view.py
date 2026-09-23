@@ -37,7 +37,6 @@ _GROUPS: list[tuple[str, str, list[tuple[str, str | None]]]] = [
     ("controller", "Controller", [
         ("CONTROL_TARGET_W", "20"), ("CONTROL_DEADBAND_W", "25"), ("CONTROL_GAIN", "0.7"),
         ("CONTROL_MIN_W", "0"), ("CONTROL_MAX_W", "800"), ("CONTROL_MIN_INTERVAL", "45"),
-        ("CONTROL_FALLBACK_W", "0"),
     ]),
 ]
 

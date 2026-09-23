@@ -1,4 +1,5 @@
 import asyncio
+from unittest import mock
 
 import pytest
 
@@ -208,6 +209,40 @@ def test_failed_device_write_falls_back_to_the_bridge_logic():
     asyncio.run(c.configure(enabled=True, dry_run=False, settings={"NIGHT_MIN_SOC": 15}))
     assert c.device_note.key == "dev.soc_failed" and c.device_note.level == "error"
     assert c.status()["min_soc_source"] == "bridge"
+
+
+def test_failsafe_clamps_the_fallback_to_the_current_plan_cap(monkeypatch):
+    client = FakeClient(guest=True)
+    c = _ctl(client)
+    asyncio.run(c.configure(enabled=True, dry_run=False, settings={"CONTROL_FALLBACK_W": 500}))
+    assert _controller().fallback_w == 500  # persisted like any other plan setting
+    latest, now = _night(soc=10)  # below the default NIGHT_MIN_SOC floor -> plan cap is 0
+    monkeypatch.setattr(st.STATE, "latest", latest)
+    with mock.patch("time.time", return_value=now):
+        asyncio.run(c._failsafe())
+    assert c.setpoint == 0 and c.last_action.key == "act.set" and c.last_action.params["w"] == 0
+
+
+def test_failsafe_uses_the_fallback_as_is_when_it_is_within_the_plan_cap(monkeypatch):
+    client = FakeClient(guest=True)
+    c = _ctl(client)
+    asyncio.run(c.configure(enabled=True, dry_run=False, settings={"CONTROL_FALLBACK_W": 50}))
+    latest, now = _night(soc=80)  # well above the floor -> plan cap is night_max_w (150 default)
+    monkeypatch.setattr(st.STATE, "latest", latest)
+    with mock.patch("time.time", return_value=now):
+        asyncio.run(c._failsafe())
+    assert c.setpoint == 50
+
+
+def test_failsafe_ignores_the_plan_cap_when_the_plan_is_disabled(monkeypatch):
+    client = FakeClient(guest=True)
+    c = _ctl(client)
+    asyncio.run(c.configure(enabled=True, dry_run=False, plan=False, settings={"CONTROL_FALLBACK_W": 500}))
+    latest, now = _night(soc=10)
+    monkeypatch.setattr(st.STATE, "latest", latest)
+    with mock.patch("time.time", return_value=now):
+        asyncio.run(c._failsafe())
+    assert c.setpoint == 500
 
 
 def test_country_max_power_is_main_account_only():

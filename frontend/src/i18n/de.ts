@@ -116,7 +116,7 @@ export const de = {
   "cc.diag.plain": "(reine Zahl)",
 
   "sc.title": "Parameter & Schwellenwerte",
-  "sc.subtitle": "Tag/Nacht-Zeitfenster, Ladereserve und Tiefentladeschutz des Batterie-Plans; dazu die Zähler-Frische",
+  "sc.subtitle": "Tag/Nacht-Zeitfenster, Ladereserve und Tiefentladeschutz des Batterie-Plans; dazu Zähler-Frische und Failsafe-Ausgabe",
   "sc.dirty": "ungespeichert",
   "sc.defaults": "Standard (.env)",
   "sc.revert": "Verwerfen",
@@ -146,6 +146,8 @@ export const de = {
   "field.NIGHT_MIN_SOC.helpMain": "Wird als Entladestopp ins Gerät geschrieben (max. 20 %); darüber setzt die Bridge ihn um",
   "field.CONTROL_METER_MAX_AGE": "Zähler-Frische",
   "field.CONTROL_METER_MAX_AGE.help": "So alt darf der letzte Zählerwert höchstens sein, bevor Regler-Notabschaltung und Anzeige ihn verwerfen – je nachdem, wie oft dein Zähler meldet",
+  "field.CONTROL_FALLBACK_W": "Failsafe-Ausgabe",
+  "field.CONTROL_FALLBACK_W.help": "Sollwert, wenn der Zähler zu lange nichts meldet – als Obergrenze für die Grundlast deines Hauses gedacht; der Batterie-Plan (Nacht/SOC/Reserve) deckelt ihn zusätzlich",
 
   "pp.title": "Batterie-Plan Vorschau",
   "pp.subtitle": "Schwellen und Zeitfenster – auch mit ungespeicherten Änderungen",

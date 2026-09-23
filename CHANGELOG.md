@@ -17,7 +17,8 @@ Erstes Release.
   im Trockenlauf**, echte Schreibzugriffe brauchen eine Bestätigung im UI.
 - Einspeise-Schutz: hebt die Ladereserve automatisch an, sobald der Zähler eine Einspeisung meldet, und senkt sie
   danach träge wieder ab, sobald keine mehr auftritt – nie unter den von dir konfigurierten Wert.
-- PV-Tageshöchstwert und Zähler-Frische (`CONTROL_METER_MAX_AGE`) als im UI einstellbare Parameter.
+- PV-Tageshöchstwert, Zähler-Frische (`CONTROL_METER_MAX_AGE`) und Failsafe-Ausgabe (`CONTROL_FALLBACK_W`, gedeckelt
+  vom Batterie-Plan) als im UI einstellbare Parameter.
 - Langzeit-Verlauf in SQLite mit konfigurierbarer Aufbewahrung, flüchtiger Ringpuffer der rohen Geräte-Pushes.
 
 ### Web-UI
