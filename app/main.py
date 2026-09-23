@@ -253,13 +253,16 @@ async def main() -> None:
             # what locks the account. The UI shows the error; the client waits before retrying.
             _LOGGER.error("Starting without Sunshare login: %s", err)
 
+        # access_log=None: one line per request (every ~3s device push, every UI poll) drowns out
+        # the app's own, actually useful INFO logs; a specific problem is still visible via each
+        # handler's own logging (e.g. lan_proxy's raw_log) or LOG_LEVEL=DEBUG.
         lan_app = make_lan_app(STATE, mqtt_pub, session, device_id)
-        lan_runner = web.AppRunner(lan_app)
+        lan_runner = web.AppRunner(lan_app, access_log=None)
         await lan_runner.setup()
         await web.TCPSite(lan_runner, "0.0.0.0", lan_port).start()
 
         controller = GridController(client, mqtt_host, mqtt_port, mqtt_username, mqtt_password)
-        ui_runner = web.AppRunner(make_ui_app(controller, Auth.from_env()))
+        ui_runner = web.AppRunner(make_ui_app(controller, Auth.from_env()), access_log=None)
         await ui_runner.setup()
         await web.TCPSite(ui_runner, "0.0.0.0", ui_port).start()
 

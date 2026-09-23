@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [Unreleased]
+
+### Bridge
+
+- Der HTTP-Access-Log (`aiohttp.access`, eine Zeile pro Request) ist jetzt abgeschaltet – bei
+  Telemetrie-Push alle ~3 s und UI-Polling war das deutlich mehr als die eigenen, aussagekräftigen
+  INFO-Zeilen. Einzelne Probleme bleiben über die jeweiligen Handler (z. B. Raw-Log) oder
+  `LOG_LEVEL=DEBUG` sichtbar.
+
 ## [1.0.2] - 2026-09-23
 
 ### Home Assistant
