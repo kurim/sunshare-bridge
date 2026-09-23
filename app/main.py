@@ -6,6 +6,13 @@ SUNSHARE_DEVICE_SN, MQTT_HOST. See .env.example for the full list.
 """
 from __future__ import annotations
 
+# Must run before any of the app's own imports below: several of them read env vars (e.g.
+# DATA_SOURCE, see state.py) at *import* time, into module-level singletons - too late to
+# still catch a change made here.
+from .ha_options import apply_ha_options
+
+apply_ha_options()
+
 import asyncio
 import json
 import logging
@@ -19,7 +26,6 @@ from . import spa
 from .auth import Auth
 from .env_view import describe_env
 from .grid_control import GridController
-from .ha_options import apply_ha_options
 from .ingress import ingress_prefix
 from .messages import MsgError
 from .lan_proxy import make_app as make_lan_app
@@ -271,5 +277,4 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    apply_ha_options()
     asyncio.run(main())
