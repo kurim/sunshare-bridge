@@ -19,6 +19,8 @@ from . import spa
 from .auth import Auth
 from .env_view import describe_env
 from .grid_control import GridController
+from .ha_options import apply_ha_options
+from .ingress import ingress_prefix
 from .messages import MsgError
 from .lan_proxy import make_app as make_lan_app
 from .models import normalize_cloud, normalize_energy_summary
@@ -52,7 +54,7 @@ async def compress(request: web.Request, handler):
 
 def _redirect(target: str):
     async def handler(request: web.Request) -> web.Response:
-        raise web.HTTPFound(target)
+        raise web.HTTPFound(ingress_prefix(request) + target)
 
     return handler
 
@@ -269,4 +271,5 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
+    apply_ha_options()
     asyncio.run(main())

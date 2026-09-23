@@ -3,6 +3,7 @@ import {
   getControl, getHistoryCompact, getMe, Unauthorized,
   type ControlStatus, type Reading,
 } from "./api";
+import { API_BASE } from "./basePath";
 
 export type LiveState = "connecting" | "live" | "offline";
 
@@ -66,7 +67,7 @@ export function LiveProvider({ children, onSessionEnded }: { children: ReactNode
     const open = () => {
       if (source || document.hidden) return;
       setState("connecting");
-      source = new EventSource("/api/stream");
+      source = new EventSource(`${API_BASE}/stream`);
       source.onmessage = (event) => {
         const data = JSON.parse(event.data) as { mode?: string; reading?: Reading | null };
         if (data.mode) setMode(data.mode);

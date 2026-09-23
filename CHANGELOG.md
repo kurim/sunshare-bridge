@@ -5,6 +5,11 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Forma
 
 ## [Unreleased]
 
+### Home Assistant
+
+- Neu: Add-on mit Ingress-Unterstützung (`config.yaml`) – die UI läuft optional im HA-Frontend statt über einen
+  eigenen Host-Port; Docker Compose/Standalone-Betrieb bleibt unverändert.
+
 ### Docker
 
 - `docker-compose.yml` verwendet jetzt standardmäßig das veröffentlichte Image

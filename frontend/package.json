@@ -8,7 +8,7 @@
     "build": "node scripts/check-i18n.mjs && tsc --noEmit && vite build",
     "preview": "vite preview",
     "check:i18n": "node scripts/check-i18n.mjs",
-    "test": "node --test src/flows.test.ts"
+    "test": "node --test src/flows.test.ts src/basePath.test.ts"
   },
   "dependencies": {
     "react": "^19.3.0",

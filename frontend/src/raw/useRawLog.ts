@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { getMe, getRaw, type RawEntry, type RawEvent } from "../api";
+import { API_BASE } from "../basePath";
 
 export type ParsedEntry = RawEntry & { obj: Record<string, unknown> | null };
 
@@ -102,7 +103,7 @@ export function useRawLog(onSessionEnded: () => void) {
 
     const open = () => {
       if (source || document.hidden) return;
-      source = new EventSource("/api/raw/stream");
+      source = new EventSource(`${API_BASE}/raw/stream`);
       source.onopen = () => setUp(true);
       source.onerror = () => {
         setUp(false);

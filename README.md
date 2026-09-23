@@ -181,6 +181,21 @@ Nach dem Start werden per Discovery Sensoren angelegt (Auszug):
 `Battery Charge/Discharge Energy` unter *Batteriesystem*, `Battery Charge/Discharge Power` als optionale
 *Leistungsmessung* („Zwei Sensoren“).
 
+### Home Assistant Add-on
+
+Alternativ zu Docker Compose läuft die Bridge auch als Add-on mit **Ingress**: Unter *Einstellungen →
+Add-ons → Add-on Store → Repositories* dieses Repository hinzufügen, „Sunshare Bridge“ installieren und
+starten. Die UI öffnet sich dann über die HA-Seitenleiste (Ingress-Panel) – kein Port 8099 muss dafür
+manuell freigegeben werden. Das Optionsformular des Add-ons ersetzt die `.env`-Datei; die Feldnamen
+entsprechen 1:1 den Variablen aus [`.env.example`](.env.example).
+
+**Port 80 bleibt trotzdem nötig und ist von Ingress unabhängig**: Er empfängt weiterhin nur den
+Telemetrie-Push des Wechselrichters (Ziel der Router-NAT-Regel, siehe oben) – wie bei der
+Docker-Compose-Variante darf er **nie** von außen erreichbar sein.
+
+`UI_USER`/`UI_PASSWORD` gelten auch unter Ingress unverändert und werden weiterhin empfohlen (siehe
+[Sicherheit](#sicherheit)) – Ingress ist nur der Transportweg, keine Authentifizierung.
+
 ## Nulleinspeisung und Batterie-Plan
 
 Der Regler liest einen Netzzähler aus MQTT und stellt die Ausgangsleistung des Wechselrichters (`permPower`) so ein,

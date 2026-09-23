@@ -1,6 +1,5 @@
 import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
-
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, ""); // "/app"
+import { BASE_PATH as BASE } from "./basePath";
 
 /** Path below /app ("/" for the start page). */
 const current = () => window.location.pathname.slice(BASE.length).replace(/\/+$/, "") || "/";
