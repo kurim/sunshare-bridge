@@ -13,6 +13,9 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Forma
 - Fix: `DATA_SOURCE`/`RAW_LOG_SIZE` aus den Add-on-Optionen wurden ignoriert, weil sie erst nach
   dem Import der Module gesetzt wurden, die sie beim Start einmalig lesen – `DATA_SOURCE=cloud`
   blieb dadurch wirkungslos (UI zeigte weiter `lan` und keine Live-Daten).
+- Fix: die in der UI angezeigte Version blieb unter dem Add-on immer auf `dev`, weil Supervisors
+  lokaler Build die Versionsnummer als `BUILD_VERSION` übergibt, das `Dockerfile` aber nur den
+  eigenen CI-Build-Arg `VERSION` kannte.
 
 ## [1.0.1] - 2026-09-23
 
