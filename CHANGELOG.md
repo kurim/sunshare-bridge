@@ -3,7 +3,25 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
-## [Unreleased]
+## [1.0.2] - 2026-09-23
+
+### Home Assistant
+
+- Add-on: `repository.yaml` ergänzt (fehlte, Supervisor konnte das Repo sonst nicht als
+  Add-on-Repository hinzufügen), Icon/Logo für den Add-on Store ergänzt, README-Screenshots auf
+  absolute Links umgestellt (Supervisors Doku-Ansicht kennt keine Repo-Basis-URL).
+- Fix: `DATA_SOURCE`/`RAW_LOG_SIZE` aus den Add-on-Optionen wurden ignoriert, weil sie erst nach
+  dem Import der Module gesetzt wurden, die sie beim Start einmalig lesen – `DATA_SOURCE=cloud`
+  blieb dadurch wirkungslos (UI zeigte weiter `lan` und keine Live-Daten).
+
+## [1.0.1] - 2026-09-23
+
+### Behoben
+
+- Failsafe-Ausgabe (`CONTROL_FALLBACK_W`): wurde fälschlich zusätzlich auf die Tages-Ladereserve gedeckelt
+  (PV minus `CHARGE_RESERVE_W`), sodass ein konfigurierter Wert wie 200 W je nach aktueller PV-Leistung z. B. als
+  120 W gesetzt wurde. Gilt jetzt wie eingestellt; nachts bleiben Tiefentladeschutz und Nacht-Deckelung weiterhin
+  eine Grenze.
 
 ### Home Assistant
 
