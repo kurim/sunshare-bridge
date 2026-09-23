@@ -98,6 +98,22 @@ Web-UI: `http://<docker-host>:8099`. In Home Assistant erscheint unter MQTT das 
 
 In beiden Fällen läuft ein Keepalive (`openRealTime`) gegen die Cloud – ohne ihn pusht das Gerät keine Live-Daten.
 
+## Versionierung
+
+CI baut bei jedem Push nach `main` das Image `ghcr.io/kurim/sunshare-bridge:latest` (aktueller Entwicklungsstand)
+und veröffentlicht es. Ein Release entsteht durch einen Git-Tag im Format `vX.Y.Z`:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Das baut zusätzlich `ghcr.io/kurim/sunshare-bridge:v1.0.0` (fest) und `ghcr.io/kurim/sunshare-bridge:stable` (zeigt
+immer auf das jeweils neueste Release-Tag, nie auf `main`). Um ein veröffentlichtes Image statt eines lokalen Builds
+zu verwenden, in `docker-compose.yml` `build: .` durch z. B. `image: ghcr.io/kurim/sunshare-bridge:stable` ersetzen.
+Ist das GHCR-Paket noch privat, einmalig in den Paket-Einstellungen auf GitHub auf öffentlich stellen (oder vorher
+`docker login ghcr.io` mit einem Token, das `read:packages` hat).
+
 ## Web-UI
 
 `http://<docker-host>:8099/` (leitet nach `/app/`) – React-App, für das Handy gebaut und als **PWA**
