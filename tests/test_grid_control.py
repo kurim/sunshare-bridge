@@ -152,6 +152,11 @@ def _night(soc):
     return latest, time.mktime((2026, 1, 5, 2, 0, 0, 0, 0, -1))  # 02:00, inside 23:00-06:00
 
 
+def _day(soc, pv):
+    latest = {"soc": soc, "pvPow": pv}
+    return latest, time.mktime((2026, 1, 5, 12, 0, 0, 0, 0, -1))  # 12:00, outside 23:00-06:00
+
+
 @pytest.mark.parametrize("raw, expected", [
     (None, True), ("", True), ("TRUE", True), ("true", True), ("1", True),
     ("FALSE", False), ("false", False), (" False ", False), ("0", False),
@@ -211,23 +216,48 @@ def test_failed_device_write_falls_back_to_the_bridge_logic():
     assert c.status()["min_soc_source"] == "bridge"
 
 
-def test_failsafe_clamps_the_fallback_to_the_current_plan_cap(monkeypatch):
+def test_failsafe_clamps_the_fallback_to_the_night_soc_floor(monkeypatch):
     client = FakeClient(guest=True)
     c = _ctl(client)
     asyncio.run(c.configure(enabled=True, dry_run=False, settings={"CONTROL_FALLBACK_W": 500}))
     assert _controller().fallback_w == 500  # persisted like any other plan setting
-    latest, now = _night(soc=10)  # below the default NIGHT_MIN_SOC floor -> plan cap is 0
+    latest, now = _night(soc=10)  # below the default NIGHT_MIN_SOC floor -> night cap is 0
     monkeypatch.setattr(st.STATE, "latest", latest)
     with mock.patch("time.time", return_value=now):
         asyncio.run(c._failsafe())
     assert c.setpoint == 0 and c.last_action.key == "act.set" and c.last_action.params["w"] == 0
 
 
-def test_failsafe_uses_the_fallback_as_is_when_it_is_within_the_plan_cap(monkeypatch):
+def test_failsafe_clamps_the_fallback_to_the_night_ceiling(monkeypatch):
+    client = FakeClient(guest=True)
+    c = _ctl(client)
+    asyncio.run(c.configure(enabled=True, dry_run=False, settings={"CONTROL_FALLBACK_W": 500}))
+    latest, now = _night(soc=80)  # well above the floor -> night cap is night_max_w (150 default)
+    monkeypatch.setattr(st.STATE, "latest", latest)
+    with mock.patch("time.time", return_value=now):
+        asyncio.run(c._failsafe())
+    assert c.setpoint == 150
+
+
+def test_failsafe_does_not_clamp_the_fallback_to_the_day_charging_cap(monkeypatch):
+    """Regression: the day cap (PV minus charge reserve) sizes the closed loop's headroom, not what's
+    safe to output blind. Clamping the failsafe to it made a configured 200 W silently come out lower
+    (e.g. 120 W with PV 420 W and a 300 W reserve) even though nothing about the house changed."""
+    client = FakeClient(guest=True)
+    c = _ctl(client)
+    asyncio.run(c.configure(enabled=True, dry_run=False, settings={"CONTROL_FALLBACK_W": 200, "CHARGE_RESERVE_W": 300}))
+    latest, now = _day(soc=50, pv=420)  # day_charging cap would be max(420-300, 0) = 120
+    monkeypatch.setattr(st.STATE, "latest", latest)
+    with mock.patch("time.time", return_value=now):
+        asyncio.run(c._failsafe())
+    assert c.setpoint == 200
+
+
+def test_failsafe_uses_the_fallback_as_is_when_it_is_within_the_night_cap(monkeypatch):
     client = FakeClient(guest=True)
     c = _ctl(client)
     asyncio.run(c.configure(enabled=True, dry_run=False, settings={"CONTROL_FALLBACK_W": 50}))
-    latest, now = _night(soc=80)  # well above the floor -> plan cap is night_max_w (150 default)
+    latest, now = _night(soc=80)  # well above the floor -> night cap is night_max_w (150 default)
     monkeypatch.setattr(st.STATE, "latest", latest)
     with mock.patch("time.time", return_value=now):
         asyncio.run(c._failsafe())
