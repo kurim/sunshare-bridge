@@ -21,6 +21,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
 COPY --from=ui /ui/dist ./app/web
 
+# Set by CI from the git tag/branch (see .github/workflows/ci.yml and CHANGELOG.md); "dev" for
+# a plain local `docker compose up --build` with no build arg passed.
+ARG VERSION=dev
+ENV APP_VERSION=$VERSION
 ENV PYTHONUNBUFFERED=1
 EXPOSE 80 8099
 

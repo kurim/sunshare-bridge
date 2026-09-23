@@ -112,7 +112,8 @@ Das baut zusätzlich `ghcr.io/kurim/sunshare-bridge:v1.0.0` (fest) und `ghcr.io/
 immer auf das jeweils neueste Release-Tag, nie auf `main`). Um ein veröffentlichtes Image statt eines lokalen Builds
 zu verwenden, in `docker-compose.yml` `build: .` durch z. B. `image: ghcr.io/kurim/sunshare-bridge:stable` ersetzen.
 Ist das GHCR-Paket noch privat, einmalig in den Paket-Einstellungen auf GitHub auf öffentlich stellen (oder vorher
-`docker login ghcr.io` mit einem Token, das `read:packages` hat).
+`docker login ghcr.io` mit einem Token, das `read:packages` hat). Die laufende Version steht auf der Login-Seite
+und in der Kopfzeile der Web-UI; Änderungen je Release stehen in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Web-UI
 

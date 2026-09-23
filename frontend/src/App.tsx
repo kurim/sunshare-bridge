@@ -46,7 +46,7 @@ function Shell({ me, onSessionEnded }: { me: Me; onSessionEnded: () => void }) {
   return (
     <>
       <header className="top">
-        <h1>{t("app.title")}</h1>
+        <h1>{t("app.title")} <span className="version-tag">{me.version}</span></h1>
         <nav className="tabs" aria-label={t("nav.label")}>
           {TABS.map((tab) => (
             <Link key={tab.to} to={tab.to} className={path === tab.to || (tab.to === "/" && !known) ? "active" : ""}>
@@ -89,7 +89,7 @@ function Root() {
 
   if (failed) return <main className="login"><p className="card error">{t("app.unreachable")} <button className="link" onClick={refresh}>{t("app.retry")}</button></p></main>;
   if (!me) return <main className="login"><p className="hint">{t("app.loading")}</p></main>;
-  if (!me.authenticated) return <Login onDone={refresh} />;
+  if (!me.authenticated) return <Login onDone={refresh} version={me.version} />;
   return <LiveProvider onSessionEnded={refresh}><Shell me={me} onSessionEnded={refresh} /></LiveProvider>;
 }
 

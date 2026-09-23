@@ -26,6 +26,8 @@ from urllib.parse import urlsplit
 
 from aiohttp import web
 
+from .version import VERSION
+
 _LOGGER = logging.getLogger("sunshare.auth")
 
 COOKIE = "sb_session"
@@ -169,9 +171,11 @@ def make_middleware(auth: "Auth | None"):
 def add_routes(app: web.Application, auth: "Auth | None") -> None:
     async def me(request: web.Request) -> web.Response:
         if auth is None:
-            return web.json_response({"auth_required": False, "authenticated": True, "user": None})
+            return web.json_response({"auth_required": False, "authenticated": True, "user": None, "version": VERSION})
         ok = auth.verify_token(request.cookies.get(COOKIE))
-        return web.json_response({"auth_required": True, "authenticated": ok, "user": auth.user if ok else None})
+        return web.json_response(
+            {"auth_required": True, "authenticated": ok, "user": auth.user if ok else None, "version": VERSION}
+        )
 
     async def login(request: web.Request) -> web.Response:
         if auth is None:

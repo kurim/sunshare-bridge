@@ -18,6 +18,7 @@ export interface Me {
   auth_required: boolean;
   authenticated: boolean;
   user: string | null;
+  version: string;
 }
 
 /** One merged live reading (W, kWh and %; the bridge adds `_t` = epoch seconds and `_eff*` = efficiency baseline). */
