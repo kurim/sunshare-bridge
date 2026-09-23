@@ -30,27 +30,28 @@ phone app stays logged in. The UI and docs are in German; the code and comments 
 
 **Dashboard** – Energiefluss mit einer Leitung pro Paar (hier: Solar lädt die Batterie, das Netz versorgt das Haus), Kacheln, Reglerstatus:
 
-![Dashboard mit Energiefluss](docs/img/dashboard.png)
+![Dashboard mit Energiefluss](https://raw.githubusercontent.com/kurim/sunshare-bridge/main/docs/img/dashboard.png)
 
-Der Fluss in Bewegung (die hellen Impulse laufen in Flussrichtung, Tempo und Dicke folgen der Leistung; [als MP4](docs/img/dashboard.mp4)):
+Der Fluss in Bewegung (die hellen Impulse laufen in Flussrichtung, Tempo und Dicke folgen der Leistung;
+[als MP4](https://github.com/kurim/sunshare-bridge/blob/main/docs/img/dashboard.mp4)):
 
-![Animiertes Dashboard](docs/img/dashboard.gif)
+![Animiertes Dashboard](https://raw.githubusercontent.com/kurim/sunshare-bridge/main/docs/img/dashboard.gif)
 
 **Telemetrie** – Live-Leistungen, Batterie-SOC mit Schwellen, Erträge, Lade-Effizienz, „Ausgang gespeist aus …“:
 
-![Telemetrie-Seite](docs/img/telemetry.png)
+![Telemetrie-Seite](https://raw.githubusercontent.com/kurim/sunshare-bridge/main/docs/img/telemetry.png)
 
 **Fluss** – Leistung, Netzzähler und Batterie-SOC, hier die letzten 24 Stunden:
 
-![Leistungsfluss-Charts](docs/img/flow.png)
+![Leistungsfluss-Charts](https://raw.githubusercontent.com/kurim/sunshare-bridge/main/docs/img/flow.png)
 
 **Regler** – Nulleinspeisung, Parameter, Geräte-Grenzen, Plan-Vorschau und die `.env` (einklappbar, schreibgeschützt):
 
-![Regler-Seite](docs/img/control.png)
+![Regler-Seite](https://raw.githubusercontent.com/kurim/sunshare-bridge/main/docs/img/control.png)
 
 **Handy / PWA** (hell):
 
-<img src="docs/img/mobile.png" alt="Übersicht auf dem Handy" width="320">
+<img src="https://raw.githubusercontent.com/kurim/sunshare-bridge/main/docs/img/mobile.png" alt="Übersicht auf dem Handy" width="320">
 
 _Dashboard, Animation und Telemetrie sind Aufnahmen einer laufenden Bridge; Fluss, Regler und Handy zeigen Beispieldaten._
 
