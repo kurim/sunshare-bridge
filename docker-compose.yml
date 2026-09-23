@@ -1,6 +1,6 @@
 services:
   sunshare-bridge:
-    build: .
+    image: ghcr.io/kurim/sunshare-bridge:latest  # :stable pins to the newest vX.Y.Z release instead of main
     container_name: sunshare-bridge
     restart: unless-stopped
     env_file:

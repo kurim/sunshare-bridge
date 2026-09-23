@@ -85,7 +85,7 @@ Benutzer/Passwort). Alle Optionen stehen kommentiert in [`.env.example`](.env.ex
 ### 3. Starten
 
 ```bash
-docker compose up -d --build
+docker compose up -d
 ```
 
 Web-UI: `http://<docker-host>:8099`. In Home Assistant erscheint unter MQTT das Gerät **„Sunshare Inverter“**.
@@ -109,8 +109,14 @@ git push origin v1.0.0
 ```
 
 Das baut zusätzlich `ghcr.io/kurim/sunshare-bridge:v1.0.0` (fest) und `ghcr.io/kurim/sunshare-bridge:stable` (zeigt
-immer auf das jeweils neueste Release-Tag, nie auf `main`). Um ein veröffentlichtes Image statt eines lokalen Builds
-zu verwenden, in `docker-compose.yml` `build: .` durch z. B. `image: ghcr.io/kurim/sunshare-bridge:stable` ersetzen.
+immer auf das jeweils neueste Release-Tag, nie auf `main`). `docker-compose.yml` verwendet standardmäßig `:latest`
+(aktueller `main`-Stand); für einen ruhigeren Update-Rhythmus stattdessen `image: ghcr.io/kurim/sunshare-bridge:stable`
+eintragen, oder mit `build: .` weiter lokal aus dem Quellcode bauen. Nach einem Tag/neuen Release das Image ziehen:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
 Ist das GHCR-Paket noch privat, einmalig in den Paket-Einstellungen auf GitHub auf öffentlich stellen (oder vorher
 `docker login ghcr.io` mit einem Token, das `read:packages` hat). Die laufende Version steht auf der Login-Seite
 und in der Kopfzeile der Web-UI; Änderungen je Release stehen in [`CHANGELOG.md`](CHANGELOG.md).

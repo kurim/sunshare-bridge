@@ -3,6 +3,13 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [Unreleased]
+
+### Docker
+
+- `docker-compose.yml` verwendet jetzt standardmäßig das veröffentlichte Image
+  (`ghcr.io/kurim/sunshare-bridge:latest`) statt eines lokalen Builds; `build: .` bleibt als Alternative möglich.
+
 ## [1.0.0] - 2026-09-23
 
 Erstes Release.
