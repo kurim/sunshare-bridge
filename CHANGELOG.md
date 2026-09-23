@@ -12,6 +12,11 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Forma
   120 W gesetzt wurde. Gilt jetzt wie eingestellt; nachts bleiben Tiefentladeschutz und Nacht-Deckelung weiterhin
   eine Grenze.
 
+### Home Assistant
+
+- Neu: Add-on mit Ingress-Unterstützung (`config.yaml`) – die UI läuft optional im HA-Frontend statt über einen
+  eigenen Host-Port; Docker Compose/Standalone-Betrieb bleibt unverändert.
+
 ### Docker
 
 - `docker-compose.yml` verwendet jetzt standardmäßig das veröffentlichte Image

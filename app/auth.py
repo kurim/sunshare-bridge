@@ -26,6 +26,7 @@ from urllib.parse import urlsplit
 
 from aiohttp import web
 
+from .ingress import ingress_prefix
 from .version import VERSION
 
 _LOGGER = logging.getLogger("sunshare.auth")
@@ -164,7 +165,7 @@ def make_middleware(auth: "Auth | None"):
             return await handler(request)
         if path.startswith("/api/"):
             return web.json_response({"error": "unauthorized"}, status=401)
-        raise web.HTTPFound("/app/")  # legacy HTML pages: send to the login screen
+        raise web.HTTPFound(ingress_prefix(request) + "/app/")  # legacy HTML pages: send to the login screen
     return auth_middleware
 
 

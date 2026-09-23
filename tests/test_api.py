@@ -24,6 +24,14 @@ def test_old_addresses_lead_to_the_react_app():
     _run(check)
 
 
+def test_legacy_redirects_honour_the_ingress_path():
+    async def check(client):
+        r = await client.get("/", headers={"X-Ingress-Path": "/api/hassio_ingress/abc123"}, allow_redirects=False)
+        assert r.status == 302 and r.headers["Location"] == "/api/hassio_ingress/abc123/app/"
+
+    _run(check)
+
+
 def test_env_endpoint_never_returns_passwords(monkeypatch):
     monkeypatch.setenv("SUNSHARE_PASSWORD", "hunter2")
 

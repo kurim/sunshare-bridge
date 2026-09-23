@@ -9,6 +9,8 @@ from pathlib import Path
 
 from aiohttp import web
 
+from .ingress import ingress_prefix
+
 BASE = "/app"
 _HERE = Path(__file__).resolve().parent
 
@@ -56,7 +58,7 @@ def add_routes(app: web.Application, web_dir: Path | None = None) -> None:
     serve = make_handler(web_dir or default_web_dir())
 
     async def redirect(request: web.Request) -> web.StreamResponse:
-        raise web.HTTPFound(BASE + "/")
+        raise web.HTTPFound(ingress_prefix(request) + BASE + "/")
 
     app.router.add_get(BASE, redirect)
     app.router.add_get(BASE + "/", serve)

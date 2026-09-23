@@ -1,0 +1,100 @@
+name: Sunshare Bridge
+version: "1.0.0"
+slug: sunshare_bridge
+description: >-
+  Live-Daten, Verlauf und Nulleinspeisung für Sunshare-Mikro-Wechselrichter mit Batterie:
+  MQTT/Home-Assistant-Discovery, Web-UI, Langzeit-Verlauf, Regler.
+url: "https://github.com/kurim/sunshare-bridge"
+arch:
+  - amd64
+  - aarch64
+  - armv7
+startup: services
+boot: auto
+init: false
+ingress: true
+ingress_port: 8099
+panel_icon: mdi:solar-power
+panel_title: Sunshare Bridge
+ports:
+  "80/tcp": 80
+ports_description:
+  "80/tcp": "Ziel der Router-NAT-Regel für den Telemetrie-Push des Wechselrichters (siehe README) – niemals von außen freigeben"
+map:
+  - data:rw
+options:
+  SUNSHARE_USER_ACCOUNT: ""
+  SUNSHARE_PASSWORD: ""
+  SUNSHARE_DEVICE_ID: 0
+  SUNSHARE_DEVICE_SN: ""
+  SUNSHARE_USER_GUEST: true
+  MQTT_HOST: ""
+  MQTT_PORT: 1883
+  MQTT_USERNAME: ""
+  MQTT_PASSWORD: ""
+  MQTT_BASE_TOPIC: sunshare
+  UI_USER: ""
+  UI_PASSWORD: ""
+  DATA_SOURCE: lan
+  KEEPALIVE_INTERVAL: 3
+  CLOUD_POLL_INTERVAL: 2
+  ENERGY_POLL_INTERVAL: 60
+  HISTORY_RETENTION_DAYS: 30
+  RAW_LOG_SIZE: 500
+  METER_CONFIG_TOPIC: ""
+  METER_STATE_TOPIC: ""
+  METER_VALUE_PATH: ""
+  CONTROL_TARGET_W: 20
+  CONTROL_DEADBAND_W: 25
+  CONTROL_GAIN: 0.7
+  CONTROL_MIN_W: 0
+  CONTROL_MAX_W: 800
+  CONTROL_MIN_INTERVAL: 45
+  CONTROL_METER_MAX_AGE: 180
+  CONTROL_FALLBACK_W: 0
+  BATTERY_CAPACITY_WH: 1526
+  CHARGE_RESERVE_W: 200
+  CHARGE_FULL_SOC: 95
+  CHARGE_RELEASE_SOC: 90
+  NIGHT_START: "23:00"
+  NIGHT_END: "06:00"
+  NIGHT_MAX_W: 150
+  NIGHT_MIN_SOC: 25
+schema:
+  SUNSHARE_USER_ACCOUNT: str
+  SUNSHARE_PASSWORD: password
+  SUNSHARE_DEVICE_ID: int
+  SUNSHARE_DEVICE_SN: str
+  SUNSHARE_USER_GUEST: bool
+  MQTT_HOST: str
+  MQTT_PORT: port
+  MQTT_USERNAME: str?
+  MQTT_PASSWORD: password?
+  MQTT_BASE_TOPIC: str
+  UI_USER: str?
+  UI_PASSWORD: password?
+  DATA_SOURCE: "list(lan|cloud)"
+  KEEPALIVE_INTERVAL: float
+  CLOUD_POLL_INTERVAL: float
+  ENERGY_POLL_INTERVAL: float
+  HISTORY_RETENTION_DAYS: int
+  RAW_LOG_SIZE: int
+  METER_CONFIG_TOPIC: str?
+  METER_STATE_TOPIC: str?
+  METER_VALUE_PATH: str?
+  CONTROL_TARGET_W: int
+  CONTROL_DEADBAND_W: int
+  CONTROL_GAIN: float
+  CONTROL_MIN_W: int
+  CONTROL_MAX_W: int
+  CONTROL_MIN_INTERVAL: int
+  CONTROL_METER_MAX_AGE: int
+  CONTROL_FALLBACK_W: int
+  BATTERY_CAPACITY_WH: int
+  CHARGE_RESERVE_W: int
+  CHARGE_FULL_SOC: int
+  CHARGE_RELEASE_SOC: int
+  NIGHT_START: str
+  NIGHT_END: str
+  NIGHT_MAX_W: int
+  NIGHT_MIN_SOC: int

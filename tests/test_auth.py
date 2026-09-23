@@ -58,6 +58,13 @@ def test_api_and_legacy_pages_need_a_session(web_dir):
     _run(check, _auth(), web_dir)
 
 
+def test_login_redirect_honours_the_ingress_path(web_dir):
+    async def check(client):
+        r = await client.get("/control", headers={"X-Ingress-Path": "/api/hassio_ingress/abc123"}, allow_redirects=False)
+        assert r.status == 302 and r.headers["Location"] == "/api/hassio_ingress/abc123/app/"
+    _run(check, _auth(), web_dir)
+
+
 def test_login_sets_a_hardened_cookie_and_unlocks_the_api(web_dir):
     async def check(client):
         r = await client.post("/api/auth/login", json={"user": "admin", "password": "correct horse"})
@@ -120,6 +127,13 @@ def test_tokens_expire_and_cannot_be_forged_or_reused_after_a_password_change():
     assert not a.verify_token("x.y", now=1010) and not a.verify_token(None) and not a.verify_token("")
     assert not _auth("another password").verify_token(token, now=1010)      # password changed
     assert not Auth("admin", "correct horse", b"o" * 32).verify_token(token, now=1010)  # other secret
+
+
+def test_bare_app_redirect_honours_the_ingress_path(web_dir):
+    async def check(client):
+        r = await client.get("/app", headers={"X-Ingress-Path": "/api/hassio_ingress/abc123"}, allow_redirects=False)
+        assert r.status == 302 and r.headers["Location"] == "/api/hassio_ingress/abc123/app/"
+    _run(check, _auth(), web_dir)
 
 
 def test_spa_shell_assets_and_path_traversal(web_dir):
