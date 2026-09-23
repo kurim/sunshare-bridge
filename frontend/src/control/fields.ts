@@ -21,6 +21,7 @@ export const FIELDS: Field[] = [
   { key: "NIGHT_MAX_W", unit: "W", kind: "number", min: 0, max: 2000, step: 10 },
   { key: "NIGHT_MIN_SOC", unit: "%", kind: "range", min: 0, max: 100, step: 1 },
   { key: "CONTROL_METER_MAX_AGE", unit: "s", kind: "number", min: 5, max: 3600, step: 5 },
+  { key: "CONTROL_FALLBACK_W", unit: "W", kind: "number", min: 0, max: 2000, step: 10 },
 ];
 
 export type Form = Record<string, string>;

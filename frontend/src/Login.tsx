@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { ApiError, login } from "./api";
 import { useT } from "./i18n";
 
-export function Login({ onDone }: { onDone: () => void }) {
+export function Login({ onDone, version }: { onDone: () => void; version: string }) {
   const t = useT();
   const [user, setUser] = useState("");
   const [password, setPassword] = useState("");
@@ -40,6 +40,7 @@ export function Login({ onDone }: { onDone: () => void }) {
         </label>
         {error && <p className="error" role="alert">{error}</p>}
         <button type="submit" disabled={busy}>{busy ? t("login.busy") : t("login.submit")}</button>
+        <p className="hint version-tag">{version}</p>
       </form>
     </main>
   );

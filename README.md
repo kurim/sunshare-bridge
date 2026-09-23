@@ -112,7 +112,8 @@ Das baut zusätzlich `ghcr.io/kurim/sunshare-bridge:v1.0.0` (fest) und `ghcr.io/
 immer auf das jeweils neueste Release-Tag, nie auf `main`). Um ein veröffentlichtes Image statt eines lokalen Builds
 zu verwenden, in `docker-compose.yml` `build: .` durch z. B. `image: ghcr.io/kurim/sunshare-bridge:stable` ersetzen.
 Ist das GHCR-Paket noch privat, einmalig in den Paket-Einstellungen auf GitHub auf öffentlich stellen (oder vorher
-`docker login ghcr.io` mit einem Token, das `read:packages` hat).
+`docker login ghcr.io` mit einem Token, das `read:packages` hat). Die laufende Version steht auf der Login-Seite
+und in der Kopfzeile der Web-UI; Änderungen je Release stehen in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Web-UI
 
@@ -191,6 +192,10 @@ dass der Zähler ~0 W zeigt. Er ist **aus und im Trockenlauf**, bis du ihn im UI
    Ausgabe zuweist. Bleibt die Einspeisung danach aus, senkt der Regler die Anhebung träge wieder ab (alle 10 Minuten
    um 10 W) und nie unter den von dir eingestellten Wert – eine manuelle Änderung der Reserve im UI setzt diesen
    Basiswert neu.
+5. **Failsafe (`CONTROL_FALLBACK_W`, im UI einstellbar):** Meldet der Zähler zu lange nichts (`CONTROL_METER_MAX_AGE`),
+   setzt der Regler diesen Sollwert. Er ist eine Obergrenze für die Grundlast deines Hauses, kein fester Wert – der
+   Batterie-Plan deckelt ihn zusätzlich auf das, was gerade erlaubt ist (z. B. 0 nachts unterhalb von
+   `NIGHT_MIN_SOC`).
 
 ## Konfiguration
 

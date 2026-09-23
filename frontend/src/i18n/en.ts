@@ -116,7 +116,7 @@ export const en: Messages = {
   "cc.diag.plain": "(plain number)",
 
   "sc.title": "Parameters & thresholds",
-  "sc.subtitle": "Day/night window, charge reserve and deep-discharge protection of the battery plan; plus meter freshness",
+  "sc.subtitle": "Day/night window, charge reserve and deep-discharge protection of the battery plan; plus meter freshness and the failsafe output",
   "sc.dirty": "unsaved",
   "sc.defaults": "Defaults (.env)",
   "sc.revert": "Discard",
@@ -146,6 +146,8 @@ export const en: Messages = {
   "field.NIGHT_MIN_SOC.helpMain": "Written to the device as its discharge stop (max. 20 %); above that the bridge enforces it",
   "field.CONTROL_METER_MAX_AGE": "Meter freshness",
   "field.CONTROL_METER_MAX_AGE.help": "How old the last meter sample may get before the controller's failsafe and the display drop it – depends on how often your own meter reports",
+  "field.CONTROL_FALLBACK_W": "Failsafe output",
+  "field.CONTROL_FALLBACK_W.help": "Setpoint while the meter reports nothing for too long – a ceiling for your house's own baseline load; the battery plan (night/SOC/reserve) caps it further",
 
   "pp.title": "Battery plan preview",
   "pp.subtitle": "Thresholds and time window – also with unsaved changes",

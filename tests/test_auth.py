@@ -40,7 +40,7 @@ def web_dir(tmp_path):
 def test_without_credentials_the_ui_stays_open_as_before():
     async def check(client):
         me = await (await client.get("/api/auth/me")).json()
-        assert me == {"auth_required": False, "authenticated": True, "user": None}
+        assert me == {"auth_required": False, "authenticated": True, "user": None, "version": "dev"}
         assert (await client.get("/api/state")).status == 200
         assert (await client.post("/api/auth/login", json={"user": "a", "password": "b"})).status == 404
     _run(check, None)

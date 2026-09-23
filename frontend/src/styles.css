@@ -48,6 +48,7 @@ p { margin: .25rem 0; }
   background: var(--card); border-bottom: 1px solid var(--line);
 }
 .top h1 { font-size: 1.1rem; flex: none; }
+.version-tag { font-size: .7rem; font-weight: 400; color: var(--muted); }
 .top-right { margin-left: auto; display: flex; align-items: center; gap: .6rem; }
 .dot { width: .7rem; height: .7rem; border-radius: 50%; background: var(--muted); }
 .dot.live { background: var(--ok); }

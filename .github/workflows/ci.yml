@@ -61,7 +61,8 @@ jobs:
       - id: tags
         run: |
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
-          tags="$image:main-${GITHUB_SHA::7}"
+          version="main-${GITHUB_SHA::7}"
+          tags="$image:$version"
           if [ "${{ github.ref }}" = "refs/heads/main" ]; then
             tags="$tags,$image:latest"
           elif [[ "${{ github.ref }}" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -69,8 +70,10 @@ jobs:
             tags="$tags,$image:$version,$image:stable"
           fi
           echo "tags=$tags" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           tags: ${{ steps.tags.outputs.tags }}
+          build-args: VERSION=${{ steps.tags.outputs.version }}
