@@ -96,9 +96,15 @@ class SharedState:
             queue.put_nowait(payload)
 
     def _load_energy(self) -> dict[str, Any]:
+        if not ENERGY_FILE.exists():
+            return {}  # first run - nothing to restore yet, not an error
         try:
             return json.loads(ENERGY_FILE.read_text())
-        except Exception:
+        except (OSError, ValueError):
+            _LOGGER.warning(
+                "Could not read %s - energy counters (battery/PV kWh) start at 0 instead of "
+                "the last known value; check that /data is writable and persisted", ENERGY_FILE,
+            )
             return {}
 
     def _save_energy(self) -> None:
