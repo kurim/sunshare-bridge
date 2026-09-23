@@ -21,6 +21,9 @@ export interface Me {
   authenticated: boolean;
   user: string | null;
   version: string;
+  /** Served through Home Assistant's Ingress proxy - the only way in already, so the
+   * "set up a login" warning (meant for a directly reachable UI) doesn't apply. */
+  ingress: boolean;
 }
 
 /** One merged live reading (W, kWh and %; the bridge adds `_t` = epoch seconds and `_eff*` = efficiency baseline). */

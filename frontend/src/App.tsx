@@ -70,7 +70,7 @@ function Shell({ me, onSessionEnded }: { me: Me; onSessionEnded: () => void }) {
         </div>
       </header>
       <main className="page">
-        {!me.auth_required && <p className="banner" role="note">{t("app.noLoginBanner")}</p>}
+        {!me.auth_required && !me.ingress && <p className="banner" role="note">{t("app.noLoginBanner")}</p>}
         <Page path={path} onSessionEnded={onSessionEnded} />
       </main>
     </>

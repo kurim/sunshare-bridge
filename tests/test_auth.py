@@ -40,9 +40,18 @@ def web_dir(tmp_path):
 def test_without_credentials_the_ui_stays_open_as_before():
     async def check(client):
         me = await (await client.get("/api/auth/me")).json()
-        assert me == {"auth_required": False, "authenticated": True, "user": None, "version": "dev"}
+        assert me == {"auth_required": False, "authenticated": True, "user": None, "version": "dev", "ingress": False}
         assert (await client.get("/api/state")).status == 200
         assert (await client.post("/api/auth/login", json={"user": "a", "password": "b"})).status == 404
+    _run(check, None)
+
+
+def test_me_reports_ingress_from_the_request_header():
+    async def check(client):
+        me = await (await client.get("/api/auth/me", headers={"X-Ingress-Path": "/api/hassio_ingress/abc123"})).json()
+        assert me["ingress"] is True
+        me = await (await client.get("/api/auth/me")).json()
+        assert me["ingress"] is False
     _run(check, None)
 
 

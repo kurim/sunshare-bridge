@@ -171,11 +171,16 @@ def make_middleware(auth: "Auth | None"):
 
 def add_routes(app: web.Application, auth: "Auth | None") -> None:
     async def me(request: web.Request) -> web.Response:
+        # Under Ingress, Supervisor's own proxy is the only way in - the "set up a login" warning
+        # below is about a UI reachable directly, so it doesn't apply here.
+        ingress = bool(ingress_prefix(request))
         if auth is None:
-            return web.json_response({"auth_required": False, "authenticated": True, "user": None, "version": VERSION})
+            return web.json_response(
+                {"auth_required": False, "authenticated": True, "user": None, "version": VERSION, "ingress": ingress}
+            )
         ok = auth.verify_token(request.cookies.get(COOKIE))
         return web.json_response(
-            {"auth_required": True, "authenticated": ok, "user": auth.user if ok else None, "version": VERSION}
+            {"auth_required": True, "authenticated": ok, "user": auth.user if ok else None, "version": VERSION, "ingress": ingress}
         )
 
     async def login(request: web.Request) -> web.Response:
