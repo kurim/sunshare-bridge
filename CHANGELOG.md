@@ -3,6 +3,18 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [Unreleased]
+
+### Bridge
+
+- Fix: Ein einzelner ausbleibender Ertragswert (`selectInveSummary` liefert `dayPower`/`totalAllPower`
+  z. B. bei einem Cloud-Hänger nicht mit) hat `PV Energy Today`/`PV Energy Lifetime` auf `null`
+  gesetzt statt den letzten bekannten Wert zu behalten – bei `state_class: total_increasing` wertet
+  Home Assistant das als Zähler-Sprung in der Statistik. Der Poll überschreibt die Felder jetzt nur,
+  wenn er tatsächlich Werte liefert.
+- Kann `data/battery_energy.json` (Batterie-/PV-Zähler) beim Start nicht gelesen werden, steht das
+  jetzt als Warnung im Log, statt die Zähler stillschweigend bei 0 neu zu starten.
+
 ## [1.0.3] - 2026-09-23
 
 ### Bridge

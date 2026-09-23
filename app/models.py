@@ -58,8 +58,14 @@ def normalize_lan(d: dict[str, Any], device_id: int) -> dict[str, Any]:
 def normalize_energy_summary(d: dict[str, Any]) -> dict[str, Any]:
     """From POST app/inveRealDataMinute/selectInveSummary — cumulative PV yield,
     unrelated to the cloud/lan power-flow source so it's kept separate and
-    merged alongside whichever of those is currently active (see state.py)."""
-    return {
-        "todayEnergyKwh": d.get("dayPower"),
-        "lifetimeEnergyKwh": d.get("totalAllPower"),
-    }
+    merged alongside whichever of those is currently active (see state.py).
+    Omits a field entirely rather than including it as None: state.py's merge
+    overwrites on any key present, and these are published as `total_increasing`
+    energy sensors - a transient None would show as a HA statistics gap/reset
+    instead of just keeping the last known good reading."""
+    reading: dict[str, Any] = {}
+    if (today := d.get("dayPower")) is not None:
+        reading["todayEnergyKwh"] = today
+    if (lifetime := d.get("totalAllPower")) is not None:
+        reading["lifetimeEnergyKwh"] = lifetime
+    return reading

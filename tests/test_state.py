@@ -4,7 +4,7 @@ import time
 from unittest import mock
 
 import app.state as st
-from app.models import normalize_lan
+from app.models import normalize_energy_summary, normalize_lan
 
 
 class FakeMqtt:
@@ -76,6 +76,34 @@ def test_pv_peak_today_tracks_max_and_resets_at_midnight(isolated_data):
     s._pv_day = "2000-01-01"  # force a day change on the next publish
     _publish(s, {"pvPow": 120, "batPow": 0, "soc": 50}, t + 30)
     assert s.latest["pvPeakTodayW"] == 120
+
+
+def test_energy_summary_omits_missing_fields_instead_of_nulling_them():
+    assert normalize_energy_summary({"dayPower": 1.5, "totalAllPower": 42.0}) == {
+        "todayEnergyKwh": 1.5, "lifetimeEnergyKwh": 42.0,
+    }
+    assert normalize_energy_summary({}) == {}
+    assert normalize_energy_summary({"dayPower": 1.5}) == {"todayEnergyKwh": 1.5}
+
+
+def test_a_stale_energy_summary_poll_does_not_blank_the_last_good_reading():
+    """normalize_energy_summary's output is merged in regardless of the active lan/cloud
+    mode (see main.py's energy_poll_loop) - a transient miss must not erase a real value."""
+    s = st.SharedState()
+    t = time.time()
+    _publish(s, {"pvPow": 10, "soc": 30}, t)
+    _publish(s, normalize_energy_summary({"dayPower": 3.2, "totalAllPower": 100.0}), t + 1)
+    assert s.latest["todayEnergyKwh"] == 3.2 and s.latest["lifetimeEnergyKwh"] == 100.0
+    _publish(s, normalize_energy_summary({}), t + 2)  # the poll came back empty this time
+    assert s.latest["todayEnergyKwh"] == 3.2 and s.latest["lifetimeEnergyKwh"] == 100.0
+
+
+def test_a_corrupt_energy_file_is_logged_and_starts_fresh(isolated_data, caplog):
+    (isolated_data / "battery_energy.json").write_text("not json")
+    with caplog.at_level("WARNING", logger="sunshare.state"):
+        s = st.SharedState()
+    assert s._bat_charge_kwh == 0.0
+    assert "battery_energy.json" in caplog.text
 
 
 def test_lan_payload_is_normalised_including_real_values():
