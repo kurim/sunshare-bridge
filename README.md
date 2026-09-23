@@ -215,9 +215,9 @@ dass der Zähler ~0 W zeigt. Er ist **aus und im Trockenlauf**, bis du ihn im UI
    um 10 W) und nie unter den von dir eingestellten Wert – eine manuelle Änderung der Reserve im UI setzt diesen
    Basiswert neu.
 5. **Failsafe (`CONTROL_FALLBACK_W`, im UI einstellbar):** Meldet der Zähler zu lange nichts (`CONTROL_METER_MAX_AGE`),
-   setzt der Regler diesen Sollwert. Er ist eine Obergrenze für die Grundlast deines Hauses, kein fester Wert – der
-   Batterie-Plan deckelt ihn zusätzlich auf das, was gerade erlaubt ist (z. B. 0 nachts unterhalb von
-   `NIGHT_MIN_SOC`).
+   setzt der Regler diesen Sollwert – als Obergrenze für die Grundlast deines Hauses, die du selbst für sicher hältst.
+   Einzige Ausnahme: nachts bleibt der Tiefentladeschutz/die Nacht-Deckelung (`NIGHT_MIN_SOC`/`NIGHT_MAX_W`) davor,
+   ohne Zählerwert nicht mehr aus dem Akku abzugeben als vorgesehen.
 
 ## Konfiguration
 
@@ -234,7 +234,7 @@ Alles über `.env` (Vorlage: [`.env.example`](.env.example)). Wichtigste Variabl
 | `RAW_LOG_SIZE` | Größe des Roh-Log-Puffers (Default 500) |
 | `METER_CONFIG_TOPIC` / `METER_STATE_TOPIC` / `METER_VALUE_PATH` | Netzzähler für den Regler |
 | `CONTROL_*` | Regelparameter (Ziel, Totband, Verstärkung, Grenzen, Failsafe) |
-| Batterie-Plan (`BATTERY_CAPACITY_WH`, `CHARGE_*`, `NIGHT_*`) und `CONTROL_METER_MAX_AGE` (Zähler-Frische, wie oft dein Zähler meldet) | Defaults, im UI überschreibbar |
+| Batterie-Plan (`BATTERY_CAPACITY_WH`, `CHARGE_*`, `NIGHT_*`), `CONTROL_METER_MAX_AGE` (Zähler-Frische) und `CONTROL_FALLBACK_W` (Failsafe-Ausgabe) | Defaults, im UI überschreibbar |
 | `TZ` | Zeitzone (Default `Europe/Berlin`) – bestimmt u. a. den Tageswechsel des PV-Tageszählers |
 
 Persistente Daten liegen in `./data` (Energiezähler, Verlauf, Regler-Einstellungen). Ändern sich `UI_PORT`/`LAN_PORT`,
