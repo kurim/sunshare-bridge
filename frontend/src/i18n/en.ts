@@ -147,7 +147,7 @@ export const en: Messages = {
   "field.CONTROL_METER_MAX_AGE": "Meter freshness",
   "field.CONTROL_METER_MAX_AGE.help": "How old the last meter sample may get before the controller's failsafe and the display drop it – depends on how often your own meter reports",
   "field.CONTROL_FALLBACK_W": "Failsafe output",
-  "field.CONTROL_FALLBACK_W.help": "Setpoint while the meter reports nothing for too long – a ceiling for your house's own baseline load; the battery plan (night/SOC/reserve) caps it further",
+  "field.CONTROL_FALLBACK_W.help": "Setpoint while the meter reports nothing for too long – a ceiling for your house's own baseline load; at night still limited by the deep-discharge protection and the night cap",
 
   "pp.title": "Battery plan preview",
   "pp.subtitle": "Thresholds and time window – also with unsaved changes",

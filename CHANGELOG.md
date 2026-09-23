@@ -5,6 +5,13 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Forma
 
 ## [Unreleased]
 
+### Behoben
+
+- Failsafe-Ausgabe (`CONTROL_FALLBACK_W`): wurde fälschlich zusätzlich auf die Tages-Ladereserve gedeckelt
+  (PV minus `CHARGE_RESERVE_W`), sodass ein konfigurierter Wert wie 200 W je nach aktueller PV-Leistung z. B. als
+  120 W gesetzt wurde. Gilt jetzt wie eingestellt; nachts bleiben Tiefentladeschutz und Nacht-Deckelung weiterhin
+  eine Grenze.
+
 ### Docker
 
 - `docker-compose.yml` verwendet jetzt standardmäßig das veröffentlichte Image

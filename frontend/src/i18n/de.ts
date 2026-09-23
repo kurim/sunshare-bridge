@@ -147,7 +147,7 @@ export const de = {
   "field.CONTROL_METER_MAX_AGE": "Zähler-Frische",
   "field.CONTROL_METER_MAX_AGE.help": "So alt darf der letzte Zählerwert höchstens sein, bevor Regler-Notabschaltung und Anzeige ihn verwerfen – je nachdem, wie oft dein Zähler meldet",
   "field.CONTROL_FALLBACK_W": "Failsafe-Ausgabe",
-  "field.CONTROL_FALLBACK_W.help": "Sollwert, wenn der Zähler zu lange nichts meldet – als Obergrenze für die Grundlast deines Hauses gedacht; der Batterie-Plan (Nacht/SOC/Reserve) deckelt ihn zusätzlich",
+  "field.CONTROL_FALLBACK_W.help": "Sollwert, wenn der Zähler zu lange nichts meldet – als Obergrenze für die Grundlast deines Hauses gedacht; nachts zusätzlich durch Tiefentladeschutz und Nacht-Deckelung begrenzt",
 
   "pp.title": "Batterie-Plan Vorschau",
   "pp.subtitle": "Schwellen und Zeitfenster – auch mit ungespeicherten Änderungen",
