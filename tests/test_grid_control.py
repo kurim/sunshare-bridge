@@ -49,21 +49,52 @@ def test_meter_max_age_is_settable_and_kept_in_sync_with_state(isolated_data):
 def test_export_raises_the_charge_reserve_and_persists_it(isolated_data):
     c = _controller()
     before = c.charge_reserve_w
-    c._guard_against_export(-50.0)
+    c._guard_against_export(-50.0, 1000.0)
     assert c.charge_reserve_w == before + 50
     assert _controller().charge_reserve_w == before + 50  # a new instance reads control.json
+    assert _controller()._reserve_base_w == before  # the baseline itself is untouched by an auto-raise
 
 
 def test_export_guard_is_capped_and_a_no_op_without_export():
     c = _controller()
     c.charge_reserve_w = 1980
-    c._guard_against_export(-500.0)
+    c._guard_against_export(-500.0, 1000.0)
     assert c.charge_reserve_w == 2000  # PLAN_SETTINGS' own CHARGE_RESERVE_W ceiling
 
     unchanged = _controller()
-    unchanged._guard_against_export(0.0)
-    unchanged._guard_against_export(5.0)
+    unchanged._guard_against_export(0.0, 1000.0)
+    unchanged._guard_against_export(5.0, 1000.0)
     assert unchanged.charge_reserve_w == unchanged.settings()["CHARGE_RESERVE_W"]
+
+
+def test_export_guard_relaxes_slowly_and_never_below_the_baseline():
+    from app.grid_control import EXPORT_GUARD_DECAY_INTERVAL_S, EXPORT_GUARD_DECAY_STEP_W
+
+    c = _controller()
+    base = c.charge_reserve_w
+    c._guard_against_export(-25.0, 1000.0)  # raise to base + 25
+    assert c.charge_reserve_w == base + 25
+
+    c._guard_against_export(5.0, 1000.0 + EXPORT_GUARD_DECAY_INTERVAL_S - 1)  # too soon
+    assert c.charge_reserve_w == base + 25
+
+    c._guard_against_export(5.0, 1000.0 + EXPORT_GUARD_DECAY_INTERVAL_S)  # cooldown elapsed
+    assert c.charge_reserve_w == base + 25 - EXPORT_GUARD_DECAY_STEP_W
+
+    # Repeated relaxing settles exactly at the baseline, never below it.
+    t = 1000.0 + EXPORT_GUARD_DECAY_INTERVAL_S
+    for _ in range(10):
+        t += EXPORT_GUARD_DECAY_INTERVAL_S
+        c._guard_against_export(5.0, t)
+    assert c.charge_reserve_w == base
+
+
+def test_manually_editing_the_reserve_resets_the_auto_raise_baseline(isolated_data):
+    c = _controller()
+    c._guard_against_export(-50.0, 1000.0)
+    assert c.charge_reserve_w != c._reserve_base_w
+    asyncio.run(c.configure(settings={"CHARGE_RESERVE_W": 300}))
+    assert c.charge_reserve_w == 300 and c._reserve_base_w == 300
 
 
 def test_night_window_wraps_midnight():

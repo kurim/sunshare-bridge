@@ -31,6 +31,8 @@ _LOGGER = logging.getLogger("sunshare.control")
 
 CONTROL_FILE = Path("/data/control.json")
 INV_MAX_AGE_S = 120  # inverter reading older than this is not trusted as the control base
+EXPORT_GUARD_DECAY_INTERVAL_S = 600  # how rarely the export guard's charge-reserve raise may step back down
+EXPORT_GUARD_DECAY_STEP_W = 10  # ... and by how little each time, so it settles rather than hunts
 
 
 def _extract_value(payload: str, path: str | None) -> float | None:
@@ -169,6 +171,10 @@ class GridController:
         self.enabled = bool(saved.get("enabled", False))
         self.dry_run = bool(saved.get("dry_run", True))
         self.restore_w: int | None = saved.get("restore_w")
+        # What the export guard (see _guard_against_export) decays CHARGE_RESERVE_W back down
+        # to - the user's own configured value, remembered separately from any auto-raise so a
+        # restart doesn't mistake a raised reserve for the new baseline.
+        self._reserve_base_w = float(saved.get("reserve_base_w", self.charge_reserve_w))
 
         self.meter_w: float | None = None
         self.meter_t: float | None = None
@@ -176,6 +182,7 @@ class GridController:
         self.strategy_type = 1
         self.last_action: Msg | None = None
         self._last_write_t = 0.0
+        self._last_export_guard_t = 0.0
         self._failsafe_active = False
         self._mqtt_connected = False
         self._config_seen = False
@@ -202,6 +209,7 @@ class GridController:
                         "plan": self.plan_enabled,
                         "restore_w": self.restore_w,
                         "settings": self.settings(),
+                        "reserve_base_w": self._reserve_base_w,
                     }
                 )
             )
@@ -367,6 +375,8 @@ class GridController:
         if settings:
             self._apply_settings(settings)
             self._battery_full = False  # re-evaluate "full" against the new thresholds
+            if "CHARGE_RESERVE_W" in settings:
+                self._reserve_base_w = self.charge_reserve_w  # a deliberate edit is the new baseline
             self.last_action = Msg("act.params_updated", "ok")
         was_active = self.enabled and not self.dry_run
         if enabled is True and not self.enabled:
@@ -507,28 +517,43 @@ class GridController:
             max(round(pv - self.charge_reserve_w), 0),
         )
 
-    def _guard_against_export(self, meter_w: float) -> None:
+    def _guard_against_export(self, meter_w: float, now: float) -> None:
         """Feed-in at the meter (negative reading) means the day's charge reserve is too low: too much
         PV is left over for output instead of charging. Raise the reserve right away, by exactly the
         export seen, so `_plan_cap` leaves that much less headroom for output next cycle. This runs
-        before the write-rate-limit below since it only changes the bridge's own plan, not the device."""
-        if meter_w >= 0:
+        before the write-rate-limit below since it only changes the bridge's own plan, not the device.
+
+        Without export, slowly relax any such raise back toward the user's own configured reserve
+        (`_reserve_base_w`), one small step at a time and never faster than once per
+        EXPORT_GUARD_DECAY_INTERVAL_S - a quick decay would just re-trigger the raise above on the next
+        PV dip. It never goes below that baseline, so it settles exactly where export last needed it."""
+        if meter_w < 0:
+            reserve_max = PLAN_SETTINGS["CHARGE_RESERVE_W"][3]
+            new_reserve = min(round(self.charge_reserve_w - meter_w), int(reserve_max))
+            if new_reserve == self.charge_reserve_w:
+                return
+            old = self.charge_reserve_w
+            self.charge_reserve_w = new_reserve
+            self._last_export_guard_t = now
+            self._save()
+            self.last_action = Msg("act.export_guard", "warn", meter=round(meter_w), old=old, new=new_reserve)
+            _LOGGER.warning("%s", self.last_action)
             return
-        reserve_max = PLAN_SETTINGS["CHARGE_RESERVE_W"][3]
-        new_reserve = min(round(self.charge_reserve_w - meter_w), int(reserve_max))
-        if new_reserve == self.charge_reserve_w:
+        if self.charge_reserve_w <= self._reserve_base_w or now - self._last_export_guard_t < EXPORT_GUARD_DECAY_INTERVAL_S:
             return
         old = self.charge_reserve_w
+        new_reserve = max(self.charge_reserve_w - EXPORT_GUARD_DECAY_STEP_W, self._reserve_base_w)
         self.charge_reserve_w = new_reserve
+        self._last_export_guard_t = now
         self._save()
-        self.last_action = Msg("act.export_guard", "warn", meter=round(meter_w), old=old, new=new_reserve)
-        _LOGGER.warning("%s", self.last_action)
+        self.last_action = Msg("act.export_guard_relax", "info", old=old, new=new_reserve)
+        _LOGGER.info("%s", self.last_action)
 
     async def _step(self) -> None:
         if not self.enabled or self.meter_w is None:
             return
-        self._guard_against_export(self.meter_w)
         now = time.time()
+        self._guard_against_export(self.meter_w, now)
         if now - self._last_write_t < self.min_interval_s:
             self.last_action = Msg("act.skip_interval", "warn")
             return
