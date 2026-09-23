@@ -239,18 +239,39 @@ def test_failsafe_clamps_the_fallback_to_the_night_ceiling(monkeypatch):
     assert c.setpoint == 150
 
 
-def test_failsafe_does_not_clamp_the_fallback_to_the_day_charging_cap(monkeypatch):
-    """Regression: the day cap (PV minus charge reserve) sizes the closed loop's headroom, not what's
-    safe to output blind. Clamping the failsafe to it made a configured 200 W silently come out lower
-    (e.g. 120 W with PV 420 W and a 300 W reserve) even though nothing about the house changed."""
+def test_failsafe_clamps_the_fallback_to_the_day_charging_cap(monkeypatch):
+    """Regression: a stale meter with no PV (e.g. dusk, before the night window starts) used to still
+    apply the full configured fallback - with no PV to cover it, that came entirely out of the battery
+    during what's supposed to be the day's charging-reserve lockout. The day cap (PV minus charge
+    reserve) now applies to the failsafe fallback exactly like it does to the closed loop."""
     client = FakeClient(guest=True)
     c = _ctl(client)
     asyncio.run(c.configure(enabled=True, dry_run=False, settings={"CONTROL_FALLBACK_W": 200, "CHARGE_RESERVE_W": 300}))
-    latest, now = _day(soc=50, pv=420)  # day_charging cap would be max(420-300, 0) = 120
+    latest, now = _day(soc=50, pv=420)  # day_charging cap = max(420-300, 0) = 120
     monkeypatch.setattr(st.STATE, "latest", latest)
     with mock.patch("time.time", return_value=now):
         asyncio.run(c._failsafe())
-    assert c.setpoint == 200
+    assert c.setpoint == 120
+
+
+def test_failsafe_never_drains_the_battery_with_no_pv_during_the_day(monkeypatch):
+    client = FakeClient(guest=True)
+    c = _ctl(client)
+    asyncio.run(c.configure(enabled=True, dry_run=False, settings={"CONTROL_FALLBACK_W": 200}))
+    latest, now = _day(soc=89, pv=0)  # dusk: still before the night window, no PV to cover any output
+    monkeypatch.setattr(st.STATE, "latest", latest)
+    with mock.patch("time.time", return_value=now):
+        asyncio.run(c._failsafe())
+    assert c.setpoint == 0
+
+
+def test_failsafe_defaults_to_0_when_the_plan_is_on_but_soc_and_pv_are_unknown(monkeypatch):
+    client = FakeClient(guest=True)
+    c = _ctl(client)
+    asyncio.run(c.configure(enabled=True, dry_run=False, settings={"CONTROL_FALLBACK_W": 200}))
+    monkeypatch.setattr(st.STATE, "latest", {})
+    asyncio.run(c._failsafe())
+    assert c.setpoint == 0
 
 
 def test_failsafe_uses_the_fallback_as_is_when_it_is_within_the_night_cap(monkeypatch):

@@ -100,9 +100,10 @@ PLAN_SETTINGS: dict[str, tuple[str, str, float, float]] = {
     # How long a meter sample stays valid (failsafe trigger and the UI's "still fresh?" cutoff);
     # depends on how often the user's own meter reports, so it isn't a fixed default for everyone.
     "CONTROL_METER_MAX_AGE": ("meter_max_age_s", "float", 5, 3600),
-    # Output while the meter is stale (see _failsafe): 0 is only ever "safe" for a house with no
-    # baseline load of its own. Applied as set, except _failsafe still won't push it past the
-    # night's SOC floor/ceiling - that protection holds even without a live PV reading.
+    # Ceiling for the output while the meter is stale (see _failsafe): 0 is only ever "safe" for a
+    # house with no baseline load of its own. Still subject to the battery plan's phase cap (PV
+    # minus charge reserve by day, the night SOC floor/ceiling) when the plan is on - a fixed value
+    # here is a ceiling for what the house may need, not a guarantee that PV/grid actually cover it.
     "CONTROL_FALLBACK_W": ("fallback_w", "int", 0, 2000),
 }
 
@@ -634,10 +635,14 @@ class GridController:
 
     async def _failsafe(self) -> None:
         """No meter sample for `meter_max_age_s`: drive to a safe output once. `fallback_w` (UI-editable,
-        default 0) is applied as configured - it's the ceiling the user has already decided is safe for
-        their house's own baseline load, blind or not. The one thing it can't override is the night's SOC
-        floor/ceiling (`_night_cap`): that's battery-health protection, not headroom bookkeeping for the
-        closed loop, so it still applies with no live PV to size a day cap from."""
+        default 0) is the ceiling for it, but only ever a ceiling - with the battery plan on, it is
+        additionally capped by the exact same phase logic the closed loop uses (`_plan_cap`, from the
+        last known SOC/PV - independent of the meter, so still fresh): during the day charging phase or
+        once full that means never drawing more from the battery than PV actually covers, at night the
+        usual SOC floor/ceiling. A configured fallback is a guess at what the house's own baseline load
+        needs, not a guarantee that PV/grid cover it - the plan's reserve exists precisely so a blind
+        fallback can't eat into it. If the plan is on but even the last known SOC/PV is missing, there is
+        nothing to size a safe cap from, so it defaults to 0 rather than trusting the raw fallback."""
         if not self.enabled or self._failsafe_active:
             return
         self._failsafe_active = True
@@ -646,9 +651,10 @@ class GridController:
             self.meter_max_age_s, self._mqtt_connected, self._config_seen, self.state_topic, self.value_path,
         )
         watts = self.fallback_w
-        soc = (STATE.latest or {}).get("soc")
-        if self.plan_enabled and soc is not None:
-            night = self._night_cap(soc, time.time())
-            if night is not None:
-                watts = min(watts, night[1])
+        if self.plan_enabled:
+            cap = self._plan_cap(STATE.latest or {}, time.time())
+            if cap is not None:
+                self.phase, watts = cap[0], min(watts, cap[1])
+            else:
+                watts = 0
         await self._apply(watts, Msg("why.failsafe"))

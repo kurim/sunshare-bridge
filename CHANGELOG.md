@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [Unreleased]
+
+### Bridge
+
+- Fix: Bei ausgefallenem Zähler (`Failsafe`) hat der Regler `CONTROL_FALLBACK_W` tagsüber ungedeckelt
+  gesetzt – ohne PV kam das komplett aus dem Akku, auch während der Lade-Sperrfrist vor Nachtbeginn.
+  Der Failsafe-Sollwert respektiert jetzt dieselbe Phasen-Deckelung (PV minus Ladereserve tagsüber,
+  Nacht-Grenzen) wie der laufende Regelkreis; ohne bekannten SOC/PV ist die Obergrenze jetzt 0 statt
+  des vollen Fallback-Werts.
+
 ## [1.0.4] - 2026-09-23
 
 ### Bridge
