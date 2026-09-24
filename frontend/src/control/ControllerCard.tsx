@@ -100,6 +100,9 @@ export function ControllerCard({ status, onStatus }: { status: ControlStatus; on
         <Toggle label={t("cc.plan")} hint={t("cc.plan.hint")} checked={status.plan} disabled={busy}
           tag={status.plan ? t("cc.badge.auto") : t("cc.badge.off")} tagClass={status.plan ? "info" : ""}
           onChange={(v) => change({ plan: v })} />
+        <Toggle label={t("cc.coverLoad")} hint={t("cc.coverLoad.hint")} checked={status.cover_load} disabled={busy}
+          tag={status.cover_load ? t("cc.badge.on") : t("cc.badge.off")} tagClass={status.cover_load ? "info" : ""}
+          onChange={(v) => change({ cover_load: v })} />
       </div>
       {error && <p className="error" role="alert">{error}</p>}
 

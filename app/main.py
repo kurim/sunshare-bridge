@@ -120,15 +120,16 @@ def make_ui_app(controller: GridController, auth: Auth | None = None, web_dir=No
         try:
             data = await request.json()
             enabled, dry_run, plan = data.get("enabled"), data.get("dry_run"), data.get("plan")
-            if not all(isinstance(v, bool) or v is None for v in (enabled, dry_run, plan)):
-                raise ValueError("enabled/dry_run/plan must be booleans")
+            cover_load = data.get("cover_load")
+            if not all(isinstance(v, bool) or v is None for v in (enabled, dry_run, plan, cover_load)):
+                raise ValueError("enabled/dry_run/plan/cover_load must be booleans")
             settings = data.get("settings")
             if settings is not None and not isinstance(settings, dict):
                 raise ValueError("settings must be an object")
             device = data.get("device")
             if device is not None and not isinstance(device, dict):
                 raise ValueError("device must be an object")
-            await controller.configure(enabled, dry_run, plan, settings, device)
+            await controller.configure(enabled, dry_run, plan, cover_load, settings, device)
         except (ValueError, json.JSONDecodeError) as err:
             body = {"error": str(err)}
             if isinstance(err, MsgError):

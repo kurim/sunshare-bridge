@@ -20,6 +20,7 @@ EN: dict[str, str] = {
     "phase.night_out": "Night: output up to {w} W (SOC {soc} %)",
     "phase.day_full": "Day: battery full ({soc} %) – PV pass-through only",
     "phase.day_charging": "Day: battery charging (reserve {reserve} W, SOC {soc} %)",
+    "phase.day_cover_load": "Day: covering grid load, PV surplus → battery (export guard {guard} W, SOC {soc} %)",
     # last controller action
     "act.params_updated": "Parameters updated",
     "act.enabled": "Enabled (previous output: {w} W)",

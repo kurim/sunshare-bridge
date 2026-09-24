@@ -75,6 +75,7 @@ export type Settings = Record<string, string | number>;
 export interface ControlStatus {
   cloud_login: CloudLogin | null;
   plan: boolean;
+  cover_load: boolean;
   phase: Msg | null;
   est_full_h: number | null;
   est_night_h: number | null;
@@ -106,6 +107,7 @@ export interface ControlUpdate {
   enabled?: boolean;
   dry_run?: boolean;
   plan?: boolean;
+  cover_load?: boolean;
   settings?: Settings;
   device?: { COUNTRY_MAX_POWER: number };
 }

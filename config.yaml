@@ -1,5 +1,5 @@
 name: Sunshare Bridge
-version: "1.0.5"
+version: "1.0.6"
 slug: sunshare_bridge
 description: >-
   Live-Daten, Verlauf und Nulleinspeisung für Sunshare-Mikro-Wechselrichter mit Batterie:
@@ -50,7 +50,7 @@ options:
   CONTROL_GAIN: 0.7
   CONTROL_MIN_W: 0
   CONTROL_MAX_W: 800
-  CONTROL_MIN_INTERVAL: 45
+  CONTROL_MIN_INTERVAL: 60
   CONTROL_METER_MAX_AGE: 180
   CONTROL_FALLBACK_W: 0
   BATTERY_CAPACITY_WH: 1526

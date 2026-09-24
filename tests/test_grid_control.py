@@ -98,6 +98,52 @@ def test_manually_editing_the_reserve_resets_the_auto_raise_baseline(isolated_da
     assert c.charge_reserve_w == 300 and c._reserve_base_w == 300
 
 
+def test_control_min_interval_is_bounded_to_the_meter_delay_window():
+    c = _controller()
+    assert c.settings()["CONTROL_MIN_INTERVAL"] == 60  # default: low end of the 60-120s window
+    with pytest.raises(ValueError):
+        asyncio.run(c.configure(settings={"CONTROL_MIN_INTERVAL": 30}))  # faster than any real meter delay
+    asyncio.run(c.configure(settings={"CONTROL_MIN_INTERVAL": 90}))
+    assert c.min_interval_s == 90
+
+
+def test_cover_load_defaults_off_and_persists(isolated_data):
+    c = _controller()
+    assert c.cover_load is False
+    asyncio.run(c.configure(cover_load=True))
+    assert c.cover_load is True
+    assert _controller().cover_load is True  # a new instance reads control.json
+
+
+def test_cover_load_covers_the_full_pv_without_export():
+    """No export guard active (fresh reserve == the configured baseline): cover_load lets the whole
+    PV through instead of always withholding CHARGE_RESERVE_W, unlike the default day_charging phase."""
+    c = _controller()
+    c.cover_load = True
+    latest, now = _day(soc=50, pv=420)
+    phase, cap = c._plan_cap(latest, now)
+    assert (phase.key, phase.params, cap) == ("phase.day_cover_load", {"guard": 0, "soc": 50}, 420)
+
+
+def test_cover_load_withholds_exactly_what_the_export_guard_has_claimed():
+    c = _controller()
+    c.cover_load = True
+    c._guard_against_export(-50.0, 1000.0)  # export seen -> reserve raised by 50 W over the baseline
+    latest, now = _day(soc=50, pv=420)
+    phase, cap = c._plan_cap(latest, now)
+    assert (phase.key, phase.params, cap) == ("phase.day_cover_load", {"guard": 50, "soc": 50}, 370)
+
+
+def test_cover_load_does_not_change_the_night_or_battery_full_phases():
+    c = _controller()
+    c.cover_load = True
+    latest, now = _night(soc=80)
+    assert c._plan_cap(latest, now)[0].key == "phase.night_out"  # unaffected by cover_load
+    latest, now = _day(soc=c.full_soc, pv=300)
+    phase, cap = c._plan_cap(latest, now)
+    assert (phase.key, cap) == ("phase.day_full", 300)
+
+
 def test_night_window_wraps_midnight():
     start, end = _parse_hm("23:00"), _parse_hm("06:00")
     assert _in_window(_parse_hm("23:30"), start, end)
