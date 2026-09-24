@@ -38,9 +38,12 @@ _GROUPS: list[tuple[str, str, list[tuple[str, str | None]]]] = [
         ("CONTROL_TARGET_W", "20"), ("CONTROL_DEADBAND_W", "25"), ("CONTROL_GAIN", "0.7"),
         ("CONTROL_MIN_W", "0"), ("CONTROL_MAX_W", "800"), ("CONTROL_MIN_INTERVAL", "60"),
     ]),
+    ("weather", "Weather forecast (OpenWeatherMap)", [
+        ("OWM_API_KEY", None), ("OWM_LAT", None), ("OWM_LON", None), ("WEATHER_POLL_INTERVAL", "1800"),
+    ]),
 ]
 
-_SECRET = ("PASSWORD", "TOKEN", "SECRET")  # also covers UI_PASSWORD / UI_SESSION_SECRET
+_SECRET = ("PASSWORD", "TOKEN", "SECRET", "KEY")  # also covers UI_PASSWORD / UI_SESSION_SECRET / OWM_API_KEY
 _PARTIAL = ("SUNSHARE_USER_ACCOUNT",)
 
 

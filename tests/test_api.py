@@ -65,6 +65,14 @@ def test_history_endpoints_validate_input():
     _run(check)
 
 
+def test_weather_endpoint_is_unavailable_without_a_configured_client():
+    async def check(client):
+        body = await (await client.get("/api/weather")).json()
+        assert body == {"available": False, "today": None, "tomorrow": None, "updated_at": None, "error": None}
+
+    _run(check)
+
+
 def test_raw_log_endpoints():
     async def check(client):
         from app.raw_log import RAW

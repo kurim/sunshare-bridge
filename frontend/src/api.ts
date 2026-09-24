@@ -76,6 +76,8 @@ export interface ControlStatus {
   cloud_login: CloudLogin | null;
   plan: boolean;
   cover_load: boolean;
+  adaptive_gain: boolean;
+  gain: number;
   phase: Msg | null;
   est_full_h: number | null;
   est_night_h: number | null;
@@ -108,8 +110,24 @@ export interface ControlUpdate {
   dry_run?: boolean;
   plan?: boolean;
   cover_load?: boolean;
+  adaptive_gain?: boolean;
   settings?: Settings;
   device?: { COUNTRY_MAX_POWER: number };
+}
+
+/** One day's coarse PV outlook from OpenWeatherMap (see app/weather.py); null while data for
+ * that day isn't available (e.g. "tomorrow" late in the forecast window). */
+export interface WeatherDay {
+  clouds_pct: number;
+  pop_pct: number;
+  outlook: "sunny" | "partly" | "cloudy";
+}
+export interface WeatherStatus {
+  available: boolean;
+  today: WeatherDay | null;
+  tomorrow: WeatherDay | null;
+  updated_at: number | null;
+  error: string | null;
 }
 
 export interface EnvItem {
@@ -148,6 +166,7 @@ export const getControl = () => api<ControlStatus>("/api/control");
 export const postControl = (update: ControlUpdate) =>
   api<ControlStatus>("/api/control", { method: "POST", body: JSON.stringify(update) });
 export const getEnv = () => api<EnvGroup[]>("/api/env");
+export const getWeather = () => api<WeatherStatus>("/api/weather");
 
 export const getHistoryCompact = () => api<Reading[]>("/api/history?compact=1");
 export const getHistoryLong = (minutes: number) => api<HistoryLong>(`/api/history/long?minutes=${minutes}`);

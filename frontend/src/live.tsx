@@ -1,13 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import {
-  getControl, getHistoryCompact, getMe, Unauthorized,
-  type ControlStatus, type Reading,
+  getControl, getHistoryCompact, getMe, getWeather, Unauthorized,
+  type ControlStatus, type Reading, type WeatherStatus,
 } from "./api";
 import { API_BASE } from "./basePath";
 
 export type LiveState = "connecting" | "live" | "offline";
 
 const HISTORY_MAX = 600; // same size as the bridge's in-memory buffer
+const WEATHER_POLL_MS = 600_000; // the forecast itself only updates every ~3h upstream
 
 interface LiveData {
   reading: Reading | null;
@@ -19,6 +20,7 @@ interface LiveData {
   controlError: boolean;
   /** Put a fresh status (e.g. the answer to a POST) straight into the view. */
   setControl: (status: ControlStatus) => void;
+  weather: WeatherStatus | null;
 }
 
 const Ctx = createContext<LiveData | null>(null);
@@ -41,6 +43,7 @@ export function LiveProvider({ children, onSessionEnded }: { children: ReactNode
   const [state, setState] = useState<LiveState>("connecting");
   const [control, setControl] = useState<ControlStatus | null>(null);
   const [controlError, setControlError] = useState(false);
+  const [weather, setWeather] = useState<WeatherStatus | null>(null);
 
   const refreshControl = useCallback(() => {
     getControl()
@@ -49,6 +52,12 @@ export function LiveProvider({ children, onSessionEnded }: { children: ReactNode
         if (err instanceof Unauthorized) onSessionEnded();
         else setControlError(true);
       });
+  }, [onSessionEnded]);
+
+  const refreshWeather = useCallback(() => {
+    getWeather()
+      .then(setWeather)
+      .catch((err) => { if (err instanceof Unauthorized) onSessionEnded(); });
   }, [onSessionEnded]);
 
   const loadHistory = useCallback(() => {
@@ -90,21 +99,25 @@ export function LiveProvider({ children, onSessionEnded }: { children: ReactNode
       open();
       loadHistory();
       refreshControl();
+      refreshWeather();
     };
 
     open();
     loadHistory();
     refreshControl();
+    refreshWeather();
     const poll = setInterval(() => { if (!document.hidden) refreshControl(); }, 5000);
+    const weatherPoll = setInterval(() => { if (!document.hidden) refreshWeather(); }, WEATHER_POLL_MS);
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pagehide", close);
     return () => {
       clearInterval(poll);
+      clearInterval(weatherPoll);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pagehide", close);
       close();
     };
-  }, [onSessionEnded, loadHistory, refreshControl]);
+  }, [onSessionEnded, loadHistory, refreshControl, refreshWeather]);
 
-  return <Ctx.Provider value={{ reading, history, mode, state, control, controlError, setControl }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ reading, history, mode, state, control, controlError, setControl, weather }}>{children}</Ctx.Provider>;
 }

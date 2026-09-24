@@ -229,6 +229,23 @@ dass der Zähler ~0 W zeigt. Er ist **aus und im Trockenlauf**, bis du ihn im UI
    PV minus Ladereserve (kein Aus-dem-Akku-Abgeben während der Lade-Sperrfrist, auch wenn der Zähler ausfällt), ist
    die Batterie voll nie mehr als die aktuelle PV-Leistung, nachts der übliche Tiefentladeschutz/die Nacht-Deckelung
    (`NIGHT_MIN_SOC`/`NIGHT_MAX_W`). Ohne aktuellen SOC/PV-Wert (z. B. direkt nach dem Start) ist die Obergrenze 0.
+8. **Adaptive Regelung** (Schalter im UI, aus per Default): passt `CONTROL_GAIN` selbst laufend an, statt den festen
+   `.env`-Wert zu nutzen. Nach jeder Korrektur prüft der Regler, ob der nächste Messwert tatsächlich näher am Ziel
+   lag – hat sich das Vorzeichen des Fehlers gedreht (übersteuert), wird die Verstärkung sofort gesenkt; hat sich der
+   Fehler kaum verändert (zu träge), steigt sie leicht an. Bleibt zwischen 0,3 und 1,2, ausgehend von `CONTROL_GAIN`;
+   beim Ausschalten geht sie sofort auf diesen konfigurierten Wert zurück. PV-/Batterie-Leistung eignen sich dafür
+   *nicht* als Vorsteuerung – das Gerät hat keinen eigenen Zähler, PV sagt nichts über den Hausverbrauch zwischen zwei
+   externen Zähler-Samples aus.
+
+## Wetter-Prognose (OpenWeatherMap)
+
+Optional und rein informativ: eine grobe Solar-Einschätzung (Bewölkung, Regenwahrscheinlichkeit) für heute/morgen als
+Kachel im Dashboard, aus OpenWeatherMaps kostenlosem 5-Tage-/3-Stunden-Forecast (kein bezahltes One-Call-Abo nötig).
+Ändert nichts am Regler oder Batterie-Plan – ob du z. B. `NIGHT_MIN_SOC` vor einem bewölkten Tag hochsetzt, bleibt dir
+überlassen. `OWM_API_KEY` (kostenloser Key von [openweathermap.org](https://openweathermap.org/api)), `OWM_LAT` und
+`OWM_LON` setzen (`.env.example`); ohne `OWM_API_KEY` bleibt die Kachel einfach weg. `WEATHER_POLL_INTERVAL` (Default
+1800 s) bestimmt, wie oft neu abgefragt wird – die Vorhersage selbst ändert sich bei OpenWeatherMap ohnehin nur alle
+~3 Stunden.
 
 ## Konfiguration
 
@@ -246,6 +263,8 @@ Alles über `.env` (Vorlage: [`.env.example`](.env.example)). Wichtigste Variabl
 | `METER_CONFIG_TOPIC` / `METER_STATE_TOPIC` / `METER_VALUE_PATH` | Netzzähler für den Regler |
 | `CONTROL_*` | Regelparameter (Ziel, Totband, Verstärkung, Grenzen, Failsafe) |
 | Batterie-Plan (`BATTERY_CAPACITY_WH`, `CHARGE_*`, `NIGHT_*`), `CONTROL_METER_MAX_AGE` (Zähler-Frische) und `CONTROL_FALLBACK_W` (Failsafe-Ausgabe) | Defaults, im UI überschreibbar |
+| `OWM_API_KEY`, `OWM_LAT`, `OWM_LON` | Optionale Wetter-Prognose (siehe oben); leer = Kachel bleibt weg |
+| `WEATHER_POLL_INTERVAL` | Abfrage-Intervall der Wetter-Prognose (Default 1800 s) |
 | `TZ` | Zeitzone (Default `Europe/Berlin`) – bestimmt u. a. den Tageswechsel des PV-Tageszählers |
 | `LOG_LEVEL` | `DEBUG`/`INFO` (Default)/`WARNING`/`ERROR` |
 

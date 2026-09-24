@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
+import type { WeatherDay } from "./api";
 import { EnergyFlow } from "./components/EnergyFlow";
 import { BatteryIcon, Icon } from "./components/Icons";
 import { fmt } from "./format";
-import { useMsg, useT } from "./i18n";
+import { useMsg, useT, type Key, type Translate } from "./i18n";
 import { socColor } from "./lib";
 import { useLiveData } from "./live";
 
@@ -22,6 +23,21 @@ function Tile({ label, value, hint, icon, color, badge }: {
   );
 }
 
+/** One day of the OpenWeatherMap outlook (see app/weather.py) - informational only, it never
+ * changes the battery plan; the user decides for themselves whether to raise NIGHT_MIN_SOC or
+ * CHARGE_RESERVE_W ahead of a bad day. */
+function WeatherTile({ t, label, day }: { t: Translate; label: string; day: WeatherDay }) {
+  return (
+    <div className="tile" style={{ ["--tile-c" as string]: "var(--c-grid)" }}>
+      <div className="tile-head">
+        <span className="label with-icon"><Icon name={day.outlook === "sunny" ? "sun" : "cloud"} />{label}</span>
+      </div>
+      <strong>{t(`ov.weather.outlook.${day.outlook}` as Key)}</strong>
+      <span className="hint">{t("ov.weather.detail", { clouds: fmt(day.clouds_pct, "%"), pop: fmt(day.pop_pct, "%") })}</span>
+    </div>
+  );
+}
+
 /** Charging / discharging at the right of the battery label; on narrow tiles only the symbol stays visible. */
 function FlowBadge({ discharging, text }: { discharging: boolean; text: string }) {
   return (
@@ -35,7 +51,7 @@ function FlowBadge({ discharging, text }: { discharging: boolean; text: string }
 export function Overview() {
   const t = useT();
   const tm = useMsg();
-  const { reading, control } = useLiveData();
+  const { reading, control, weather } = useLiveData();
   const login = control?.cloud_login;
   const soc = reading?.soc ?? null;
   const bat = reading?.batPow ?? null;
@@ -87,6 +103,16 @@ export function Overview() {
               {t("ov.account", { account: control.account === "main" ? t("account.main") : t("account.guest"), by: control.min_soc_source === "device" ? t("by.device") : t("by.bridge") })}
               {control.device_limits && t("ov.deviceRange", { min: fmt(control.device_limits.soc_min, "%"), max: fmt(control.device_limits.soc_max, "%") })}
             </p>
+          </section>
+        )}
+
+        {weather?.available && (weather.today || weather.tomorrow) && (
+          <section className="card">
+            <h2 className="with-icon"><Icon name="cloud" />{t("ov.weather")}</h2>
+            <div className="tiles compact">
+              {weather.today && <WeatherTile t={t} label={t("ov.weather.today")} day={weather.today} />}
+              {weather.tomorrow && <WeatherTile t={t} label={t("ov.weather.tomorrow")} day={weather.tomorrow} />}
+            </div>
           </section>
         )}
       </div>
