@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { getHistoryLong, type HistoryLong } from "./api";
+import { getHistoryLong, type HistoryLong, type HistorySpec } from "./api";
 
 /** Current time as epoch seconds, ticking every `ms`. */
 export function useNow(ms = 1000): number {
@@ -26,17 +26,23 @@ export function useWidth<T extends HTMLElement>(): [React.RefObject<T | null>, n
   return [ref, width];
 }
 
-/** Averaged samples from the bridge's database for `minutes` (0 = not needed), refreshed every minute. */
-export function useLongHistory(minutes: number): HistoryLong | null {
+/** Averaged samples from the bridge's database for `spec` (null = not needed), refreshed every
+ * minute. `spec` is keyed by a primitive string so a fresh object literal each render doesn't
+ * re-trigger the effect. */
+export function useLongHistory(spec: HistorySpec | null): HistoryLong | null {
   const [data, setData] = useState<HistoryLong | null>(null);
+  const key = spec ? ("minutes" in spec ? `m:${spec.minutes}` : `r:${spec.range}`) : null;
   useEffect(() => {
     setData(null);
-    if (!minutes) return;
+    if (!spec) return;
     let cancelled = false;
-    const load = () => getHistoryLong(minutes).then((d) => { if (!cancelled) setData(d); }).catch(() => undefined);
+    const load = () => getHistoryLong(spec).then((d) => { if (!cancelled) setData(d); }).catch(() => undefined);
     load();
     const id = setInterval(() => { if (!document.hidden) load(); }, 60_000);
     return () => { cancelled = true; clearInterval(id); };
-  }, [minutes]);
+    // `key` fully determines `spec`'s content - depending on it (not `spec` itself) avoids
+    // re-fetching every render just because the caller passed a new object with the same value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
   return data;
 }

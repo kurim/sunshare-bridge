@@ -169,7 +169,11 @@ export const getEnv = () => api<EnvGroup[]>("/api/env");
 export const getWeather = () => api<WeatherStatus>("/api/weather");
 
 export const getHistoryCompact = () => api<Reading[]>("/api/history?compact=1");
-export const getHistoryLong = (minutes: number) => api<HistoryLong>(`/api/history/long?minutes=${minutes}`);
+/** A rolling window (`{ minutes }`, e.g. "last 24h") or an actual local calendar day
+ * (`{ range: "today" | "yesterday" }`, see app/main.py's get_history_long). */
+export type HistorySpec = { minutes: number } | { range: "today" | "yesterday" };
+export const getHistoryLong = (spec: HistorySpec) =>
+  api<HistoryLong>(`/api/history/long?${"minutes" in spec ? `minutes=${spec.minutes}` : `range=${spec.range}`}`);
 
 /** One push of the inverter to the telemetry endpoint, byte-for-byte (the bridge redacts auth headers). */
 export interface RawEntry {

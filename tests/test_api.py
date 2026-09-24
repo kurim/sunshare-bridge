@@ -65,6 +65,16 @@ def test_history_endpoints_validate_input():
     _run(check)
 
 
+def test_history_long_accepts_today_and_yesterday_as_calendar_days():
+    async def check(client):
+        for day in ("today", "yesterday"):
+            body = await (await client.get(f"/api/history/long?range={day}")).json()
+            assert set(body) >= {"step", "rows", "retention_days"}
+        assert (await client.get("/api/history/long?range=lastweek")).status == 400
+
+    _run(check)
+
+
 def test_weather_endpoint_is_unavailable_without_a_configured_client():
     async def check(client):
         body = await (await client.get("/api/weather")).json()

@@ -17,6 +17,7 @@ import asyncio
 import json
 import logging
 import os
+import time
 
 import aiohttp
 from aiohttp import web
@@ -82,7 +83,17 @@ def make_ui_app(
         return web.json_response(rows)
 
     async def get_history_long(request: web.Request) -> web.Response:
-        """One averaged sample per minute from SQLite, bucketed for long ranges: ?minutes=N."""
+        """One averaged sample per minute from SQLite, bucketed for long ranges: ?minutes=N for a
+        rolling window, or ?range=today|yesterday for the actual local calendar day (TZ env) -
+        "24h" and "today" differ once it's past midnight."""
+        day = request.query.get("range")
+        if day in ("today", "yesterday"):
+            lt = time.localtime()
+            midnight = time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, 0, 0, 0, 0, 0, -1))
+            start, end = (midnight, time.time()) if day == "today" else (midnight - 86400, midnight)
+            return web.json_response(STATE.db.query_range(start, end))
+        if day is not None:
+            return web.json_response({"error": "range must be 'today' or 'yesterday'"}, status=400)
         try:
             minutes = int(request.query.get("minutes", "1440"))
         except ValueError:

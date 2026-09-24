@@ -85,14 +85,27 @@ class HistoryDB:
         """Samples of the last `minutes`, averaged into buckets so there are <= MAX_POINTS.
         Returns {"step": bucket seconds, "retention_days": ..., "rows": [{"_t", <FIELDS>}]}."""
         minutes = max(1, min(minutes, self.retention_days * 1440))
-        step = max(60, math.ceil(minutes * 60 / MAX_POINTS / 60) * 60)
+        now = time.time()
+        return self._query(now - minutes * 60, now)
+
+    def query_range(self, start: float, end: float) -> dict[str, Any]:
+        """Samples strictly between two epoch timestamps (e.g. a specific calendar day from
+        main.py's "today"/"yesterday"), same bucketing and return shape as query(). Clamped to
+        [now - retention, now] - a future end (like "today" before midnight) would otherwise ask
+        for data that doesn't exist yet."""
+        now = time.time()
+        return self._query(max(start, now - self.retention_days * 86400), min(end, now))
+
+    def _query(self, start: float, end: float) -> dict[str, Any]:
+        span_minutes = max(1, (end - start) / 60)
+        step = max(60, math.ceil(span_minutes * 60 / MAX_POINTS / 60) * 60)
         rows: list[dict[str, Any]] = []
         if self._conn is not None:
             avg = ", ".join(f'AVG("{f}")' for f in FIELDS)
             try:
                 cur = self._conn.execute(
-                    f"SELECT (t / ?) * ? AS bt, {avg} FROM samples WHERE t >= ? GROUP BY bt ORDER BY bt",
-                    (step, step, int(time.time()) - minutes * 60),
+                    f"SELECT (t / ?) * ? AS bt, {avg} FROM samples WHERE t >= ? AND t < ? GROUP BY bt ORDER BY bt",
+                    (step, step, int(start), int(end)),
                 )
                 for bt, *vals in cur:
                     row: dict[str, Any] = {"_t": bt}
