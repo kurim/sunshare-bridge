@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [Unreleased]
+
+### Bridge
+
+- Fix: Der gelernte Wert der Adaptiven Regelung wurde beim Ausschalten des Schalters verworfen (auf
+  `CONTROL_GAIN` zurückgesetzt und so gespeichert) – erneutes Einschalten begann das Lernen wieder bei
+  null. Der gelernte Wert bleibt jetzt unabhängig vom Schalter erhalten; nur die tatsächlich vom Regler
+  verwendete Verstärkung folgt dem Schalter (gelernter Wert bei „an", `CONTROL_GAIN` bei „aus").
+
 ## [1.0.8] - 2026-09-24
 
 ### Bridge

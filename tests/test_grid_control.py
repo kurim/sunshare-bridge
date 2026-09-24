@@ -147,67 +147,75 @@ def test_cover_load_does_not_change_the_night_or_battery_full_phases():
 def test_adaptive_gain_off_by_default():
     c = _controller()
     assert c.adaptive_gain is False
-    assert c.gain == c.gain_base == 0.7
+    assert c.gain == c.gain_base == 0.7  # effective gain while off is the configured base
+    assert c.learned_gain == c.gain_base  # nothing learned yet
 
 
 def test_adaptive_gain_backs_off_after_a_sign_flip():
     c = _controller()
     c._prev_error = 100.0  # was importing too much, corrected...
-    old = c.gain
+    old = c.learned_gain
     c._adapt_gain(-40.0)  # ...and overshot into export: sign flipped
-    assert c.gain == pytest.approx(old * 0.85)
+    assert c.learned_gain == pytest.approx(old * 0.85)
 
 
 def test_adaptive_gain_eases_up_when_the_error_barely_moved():
     c = _controller()
     c._prev_error = 100.0
-    old = c.gain
+    old = c.learned_gain
     c._adapt_gain(95.0)  # same sign, barely smaller: still undershooting
-    assert c.gain == pytest.approx(old * 1.05)
+    assert c.learned_gain == pytest.approx(old * 1.05)
 
 
 def test_adaptive_gain_holds_steady_once_converging_well():
     c = _controller()
     c._prev_error = 100.0
-    old = c.gain
+    old = c.learned_gain
     c._adapt_gain(50.0)  # same sign, clearly shrunk: no reason to change
-    assert c.gain == old
+    assert c.learned_gain == old
 
 
 def test_adaptive_gain_ignores_a_missing_or_tiny_previous_error():
     c = _controller()
-    old = c.gain
+    old = c.learned_gain
     c._adapt_gain(500.0)  # no _prev_error yet: nothing to grade
-    assert c.gain == old
+    assert c.learned_gain == old
     c._prev_error = 5.0  # within the deadband: already converged, nothing to grade
     c._adapt_gain(200.0)
-    assert c.gain == old
+    assert c.learned_gain == old
 
 
 def test_adaptive_gain_is_bounded():
     from app.grid_control import GAIN_MAX, GAIN_MIN
 
     c = _controller()
-    c.gain = GAIN_MIN
+    c.learned_gain = GAIN_MIN
     c._prev_error = 100.0
     c._adapt_gain(-40.0)  # would shrink further
-    assert c.gain == GAIN_MIN
-    c.gain = GAIN_MAX
+    assert c.learned_gain == GAIN_MIN
+    c.learned_gain = GAIN_MAX
     c._prev_error = 100.0
     c._adapt_gain(95.0)  # would grow further
-    assert c.gain == GAIN_MAX
+    assert c.learned_gain == GAIN_MAX
 
 
-def test_adaptive_gain_toggle_persists_and_resets_to_the_base_gain(isolated_data):
+def test_adaptive_gain_toggle_switches_the_effective_value_but_never_discards_the_learned_one(isolated_data):
     c = _controller()
-    base = c.gain
+    base = c.gain_base
     asyncio.run(c.configure(adaptive_gain=True))
     assert _controller().adaptive_gain is True  # a new instance reads control.json
-    c.gain = base * 1.2  # simulate some learning having happened, then persist it
+    c.learned_gain = base * 1.2  # simulate some learning having happened, then persist it
     c._save()
-    assert _controller().gain == pytest.approx(base * 1.2)
+    assert c.gain == pytest.approx(base * 1.2)  # effective gain follows the learned value while on
+    assert _controller().learned_gain == pytest.approx(base * 1.2)
+
     asyncio.run(c.configure(adaptive_gain=False))
-    assert c.gain == base  # turning it off discards the learned value
+    assert c.gain == base  # off: the control loop falls back to the configured base...
+    assert c.learned_gain == pytest.approx(base * 1.2)  # ...but the learned value is not discarded
+    assert _controller().learned_gain == pytest.approx(base * 1.2)  # ...and survives a restart
+
+    asyncio.run(c.configure(adaptive_gain=True))
+    assert c.gain == pytest.approx(base * 1.2)  # re-enabling resumes from where it left off
 
 
 def test_night_window_wraps_midnight():

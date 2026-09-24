@@ -77,7 +77,10 @@ export interface ControlStatus {
   plan: boolean;
   cover_load: boolean;
   adaptive_gain: boolean;
+  /** Effective gain the control loop applies right now (learned_gain while on, else the configured base). */
   gain: number;
+  /** The online-learned value, kept and shown regardless of the adaptive_gain toggle - it survives being switched off. */
+  learned_gain: number;
   phase: Msg | null;
   est_full_h: number | null;
   est_night_h: number | null;
