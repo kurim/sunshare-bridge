@@ -3,6 +3,17 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [Unreleased]
+
+### Bridge
+
+- Neu: Schalter „Netzlast abdecken" im Regler (Alternative zur festen `CHARGE_RESERVE_W`-Reservierung) – deckt
+  tagsüber zuerst den Netzbezug des Hauses; nur der vom Einspeise-Schutz tatsächlich beanspruchte Überschuss wird
+  von der Ausgabe abgezogen und geht so in die Batterie. Wirkt nur bei aktivem Batterie-Plan.
+- `CONTROL_MIN_INTERVAL` (Regel-Takt) ist jetzt im UI einstellbar und auf 60-120 s begrenzt – die typische
+  Melde-Verzögerung von Netzzählern, damit der Regler nie auf einen noch nicht angekommenen Messwert reagiert.
+  Default von 45 s auf 60 s angehoben (auch als Add-on-Option).
+
 ## [1.0.5] - 2026-09-23
 
 ### Bridge
