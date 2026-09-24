@@ -209,12 +209,21 @@ dass der Zähler ~0 W zeigt. Er ist **aus und im Trockenlauf**, bis du ihn im UI
 3. **Batterie-Plan** (optional): tagsüber lädt die Batterie mit einer Reserve (`CHARGE_RESERVE_W`) bis
    `CHARGE_FULL_SOC`, danach wird nur PV durchgereicht; nachts wird bis `NIGHT_MAX_W` abgegeben, solange der SOC über
    `NIGHT_MIN_SOC` liegt. Alle Parameter sind im UI einstellbar; die `.env`-Werte sind nur die Defaults.
-4. **Einspeise-Schutz:** Meldet der Zähler eine Einspeisung (negativer Wert), hebt der Regler `CHARGE_RESERVE_W`
+4. **Netzlast abdecken** (Schalter im UI, Alternative zur festen Ladereserve): statt tagsüber immer
+   `CHARGE_RESERVE_W` von der PV für die Batterie zurückzuhalten, deckt der Regler zuerst den Netzbezug des Hauses
+   – die Ausgabe ist nicht auf PV minus Reserve gedeckelt, solange kein Export gemeldet wird. Erst wenn der
+   Einspeise-Schutz (Punkt 5) tatsächlich eine Einspeisung sieht, wird genau dieser Überschuss von der Ausgabe
+   abgezogen und geht so in die Batterie. Wirkt nur, solange der Batterie-Plan aktiv ist.
+5. **Einspeise-Schutz:** Meldet der Zähler eine Einspeisung (negativer Wert), hebt der Regler `CHARGE_RESERVE_W`
    sofort um genau diesen Betrag an (Obergrenze 2000 W), damit die nächste Runde mehr PV der Batterie statt der
    Ausgabe zuweist. Bleibt die Einspeisung danach aus, senkt der Regler die Anhebung träge wieder ab (alle 10 Minuten
    um 10 W) und nie unter den von dir eingestellten Wert – eine manuelle Änderung der Reserve im UI setzt diesen
    Basiswert neu.
-5. **Failsafe (`CONTROL_FALLBACK_W`, im UI einstellbar):** Meldet der Zähler zu lange nichts (`CONTROL_METER_MAX_AGE`),
+6. **Regel-Takt (`CONTROL_MIN_INTERVAL`, im UI einstellbar, 60-120 s):** Mindestabstand zwischen zwei Schreibzugriffen.
+   Er ist an die typische Melde-Verzögerung von Netzzählern (60-120 s) gebunden, damit der Regler nie auf einen
+   Messwert reagiert, der den letzten eigenen Schreibzugriff noch gar nicht widerspiegelt – das würde die Regelung
+   aufschaukeln statt sie zu dämpfen. Kein eigener Wert bekannt → der niedrigste zulässige Wert (60 s) wird verwendet.
+7. **Failsafe (`CONTROL_FALLBACK_W`, im UI einstellbar):** Meldet der Zähler zu lange nichts (`CONTROL_METER_MAX_AGE`),
    setzt der Regler diesen Sollwert – als Obergrenze für die Grundlast deines Hauses, die du selbst für sicher hältst.
    Bei aktivem Batterie-Plan gilt zusätzlich dieselbe Phasen-Deckelung wie im laufenden Betrieb: tagsüber nie mehr als
    PV minus Ladereserve (kein Aus-dem-Akku-Abgeben während der Lade-Sperrfrist, auch wenn der Zähler ausfällt), ist

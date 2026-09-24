@@ -100,6 +100,10 @@ PLAN_SETTINGS: dict[str, tuple[str, str, float, float]] = {
     # How long a meter sample stays valid (failsafe trigger and the UI's "still fresh?" cutoff);
     # depends on how often the user's own meter reports, so it isn't a fixed default for everyone.
     "CONTROL_METER_MAX_AGE": ("meter_max_age_s", "float", 5, 3600),
+    # Minimum time between writes. Bounded to the meter's own reporting lag (most HA grid-meter
+    # integrations report once every 60-120s): reacting faster just means steering on a sample
+    # that hasn't caught up with the last write yet, which winds the loop up instead of damping it.
+    "CONTROL_MIN_INTERVAL": ("min_interval_s", "float", 60, 120),
     # Ceiling for the output while the meter is stale (see _failsafe): 0 is only ever "safe" for a
     # house with no baseline load of its own. Still subject to the battery plan's phase cap (PV
     # minus charge reserve by day, the night SOC floor/ceiling) when the plan is on - a fixed value
@@ -142,7 +146,9 @@ class GridController:
         self.gain = float(env("CONTROL_GAIN", "0.7"))
         self.min_w = int(env("CONTROL_MIN_W", "0"))
         self.max_w = int(env("CONTROL_MAX_W", "800"))
-        self.min_interval_s = float(env("CONTROL_MIN_INTERVAL", "45"))
+        # Default at the low end of the meter-delay window (see CONTROL_MIN_INTERVAL in PLAN_SETTINGS);
+        # a user whose meter reports slower can raise it in the UI, up to that window's other end.
+        self.min_interval_s = float(env("CONTROL_MIN_INTERVAL", "60"))
         self.meter_max_age_s = float(env("CONTROL_METER_MAX_AGE", "180"))
         self.fallback_w = int(env("CONTROL_FALLBACK_W", "0"))
 
@@ -173,6 +179,10 @@ class GridController:
         except ValueError as err:
             _LOGGER.warning("Ignoring invalid saved plan settings: %s", err)
         self.plan_enabled = bool(saved.get("plan", True))
+        # Battery-plan day phase, alternative to the fixed CHARGE_RESERVE_W: cover the household's
+        # grid draw first and only divert PV the export guard actually had to claim back, so real
+        # surplus - not a fixed reserve - is what ends up in the battery. See _plan_cap.
+        self.cover_load = bool(saved.get("cover_load", False))
         self.enabled = bool(saved.get("enabled", False))
         self.dry_run = bool(saved.get("dry_run", True))
         self.restore_w: int | None = saved.get("restore_w")
@@ -212,6 +222,7 @@ class GridController:
                         "enabled": self.enabled,
                         "dry_run": self.dry_run,
                         "plan": self.plan_enabled,
+                        "cover_load": self.cover_load,
                         "restore_w": self.restore_w,
                         "settings": self.settings(),
                         "reserve_base_w": self._reserve_base_w,
@@ -325,6 +336,7 @@ class GridController:
                 est_night_h = round((soc - self.night_min_soc) / 100 * self.battery_wh / self.night_max_w, 1)
         return {
             "plan": self.plan_enabled,
+            "cover_load": self.cover_load,
             "phase": self.phase.to_dict() if self.phase else None,
             "est_full_h": est_full_h,
             "est_night_h": est_night_h,
@@ -358,6 +370,7 @@ class GridController:
         enabled: bool | None = None,
         dry_run: bool | None = None,
         plan: bool | None = None,
+        cover_load: bool | None = None,
         settings: dict[str, Any] | None = None,
         device: dict[str, Any] | None = None,
     ) -> None:
@@ -398,6 +411,8 @@ class GridController:
             self.dry_run = dry_run
         if plan is not None:
             self.plan_enabled = plan
+        if cover_load is not None:
+            self.cover_load = cover_load
         if was_active and not (self.enabled and not self.dry_run) and self.restore_w is not None:
             ok = await self._client.set_output_power(self.restore_w, self.strategy_type)
             self.last_action = (
@@ -527,6 +542,16 @@ class GridController:
         if self._battery_full:
             # Battery stays untouched for the night: output never exceeds what PV delivers.
             return Msg("phase.day_full", soc=_n(soc)), max(round(pv), 0)
+        if self.cover_load:
+            # Cover the household's grid draw first; only PV the export guard has actually had to
+            # claim back (charge_reserve_w's raise above the user's own baseline - see
+            # _guard_against_export) is withheld from output, so real surplus, not a fixed
+            # reserve, is what ends up in the battery.
+            guard_w = max(round(self.charge_reserve_w - self._reserve_base_w), 0)
+            return (
+                Msg("phase.day_cover_load", guard=guard_w, soc=_n(soc)),
+                max(round(pv - guard_w), 0),
+            )
         return (
             Msg("phase.day_charging", reserve=self.charge_reserve_w, soc=_n(soc)),
             max(round(pv - self.charge_reserve_w), 0),
