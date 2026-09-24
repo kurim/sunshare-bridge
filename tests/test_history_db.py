@@ -30,6 +30,22 @@ def test_long_ranges_are_bucketed(tmp_path):
     assert q["step"] > 60 and len(q["rows"]) <= 1500 + 1
 
 
+def test_query_range_returns_samples_strictly_within_the_window(tmp_path):
+    db = _db(tmp_path)
+    t = int(time.time()) // 60 * 60 - 7200
+    db.add(t + 5, {"pvPow": 100})
+    db.add(t + 3665, {"pvPow": 1})  # next hour, flushes the sample above and falls outside the window
+    q = db.query_range(t, t + 3600)
+    assert [r["_t"] for r in q["rows"]] == [t] and q["rows"][0]["pvPow"] == 100
+
+
+def test_query_range_is_clamped_to_now_and_retention(tmp_path):
+    db = _db(tmp_path, days=2)
+    now = time.time()
+    q = db.query_range(now - 999_999_999, now + 999_999_999)  # absurdly wide window
+    assert q["enabled"] is True  # doesn't raise, just clamps silently
+
+
 def test_retention_prunes_old_rows(tmp_path):
     db = _db(tmp_path, days=2)
     now = time.time()

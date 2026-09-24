@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Reading } from "./api";
+import type { HistorySpec, Reading } from "./api";
 import { TimeChart, type Series } from "./charts/TimeChart";
 import { fmt } from "./format";
 import { useLongHistory } from "./hooks";
@@ -7,23 +7,32 @@ import { useT, type Key, type Translate } from "./i18n";
 import { smooth } from "./lib";
 import { useLiveData } from "./live";
 
-const powerSeries = (t: Translate): Series[] => [
-  { key: "pvPreal", fallback: "pvPow", label: t("fl.s.pv"), color: "var(--c-pv)", width: 2 },
-  { key: "invPow", label: t("fl.s.inv"), color: "var(--c-inv)", width: 1.75 },
-  { key: "batPreal", fallback: "batPow", label: t("fl.s.bat"), color: "var(--c-bat)", width: 1.5 },
-  { key: "offGridPow", label: t("fl.s.socket"), color: "var(--c-socket)", width: 1.5 },
-  { key: "exportPow", label: t("fl.s.export"), color: "var(--c-export)", width: 1.5 },
+const POWER_KEYS = ["pv", "inv", "bat", "socket", "export"] as const;
+type PowerKey = (typeof POWER_KEYS)[number];
+
+/** One entry per line in the power chart; `pkey` is what the on/off legend and its localStorage
+ * persistence key on, independent of the (translated) label or the Reading field it reads. */
+const POWER_DEFS: { pkey: PowerKey; key: keyof Reading; fallback?: keyof Reading; label: Key; color: string; width: number }[] = [
+  { pkey: "pv", key: "pvPreal", fallback: "pvPow", label: "fl.s.pv", color: "var(--c-pv)", width: 2 },
+  { pkey: "inv", key: "invPow", label: "fl.s.inv", color: "var(--c-inv)", width: 1.75 },
+  { pkey: "bat", key: "batPreal", fallback: "batPow", label: "fl.s.bat", color: "var(--c-bat)", width: 1.5 },
+  { pkey: "socket", key: "offGridPow", label: "fl.s.socket", color: "var(--c-socket)", width: 1.5 },
+  { pkey: "export", key: "exportPow", label: "fl.s.export", color: "var(--c-export)", width: 1.5 },
 ];
 const meterSeries = (t: Translate): Series[] => [{ key: "meterPow", label: t("fl.s.meter"), color: "var(--c-grid)", width: 1.75 }];
 const socSeries = (t: Translate): Series[] => [{ key: "soc", label: t("fl.s.soc"), color: "var(--c-soc)", width: 1.75 }];
 
-// "live" = raw readings from memory, the rest = 1-minute averages from the bridge's database.
-const RANGES: { key: string; label: Key; minutes: number }[] = [
-  { key: "live", label: "fl.live", minutes: 0 },
-  { key: "6h", label: "fl.6h", minutes: 360 },
-  { key: "24h", label: "fl.24h", minutes: 1440 },
-  { key: "7d", label: "fl.7d", minutes: 10080 },
-  { key: "30d", label: "fl.30d", minutes: 43200 },
+// "live" = raw readings from memory; "today"/"yesterday" = the actual local calendar day (not a
+// rolling window - they differ from "24h" once it's past midnight); the rest = rolling windows,
+// both from 1-minute averages in the bridge's database.
+const RANGES: { key: string; label: Key; spec: HistorySpec | null }[] = [
+  { key: "live", label: "fl.live", spec: null },
+  { key: "today", label: "fl.today", spec: { range: "today" } },
+  { key: "yesterday", label: "fl.yesterday", spec: { range: "yesterday" } },
+  { key: "6h", label: "fl.6h", spec: { minutes: 360 } },
+  { key: "24h", label: "fl.24h", spec: { minutes: 1440 } },
+  { key: "7d", label: "fl.7d", spec: { minutes: 10080 } },
+  { key: "30d", label: "fl.30d", spec: { minutes: 43200 } },
 ];
 
 function stored<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
@@ -32,6 +41,13 @@ function stored<T extends string>(key: string, allowed: readonly T[], fallback: 
 }
 function remember(key: string, value: string) {
   try { localStorage.setItem(key, value); } catch { /* private mode */ }
+}
+
+function loadHiddenPower(): Set<PowerKey> {
+  try {
+    const raw = localStorage.getItem("flow-hidden")?.split(",") ?? [];
+    return new Set(raw.filter((k): k is PowerKey => (POWER_KEYS as readonly string[]).includes(k)));
+  } catch { return new Set(); }
 }
 
 function Card({ title, legend, children }: { title: string; legend: React.ReactNode; children: React.ReactNode }) {
@@ -49,9 +65,10 @@ function Card({ title, legend, children }: { title: string; legend: React.ReactN
 export function Flow() {
   const t = useT();
   const { history, control } = useLiveData();
-  const POWER = powerSeries(t), METER = meterSeries(t), SOC = socSeries(t);
+  const METER = meterSeries(t), SOC = socSeries(t);
   const [range, setRange] = useState(() => stored("flow-range", RANGES.map((r) => r.key), "live"));
   const [smoothOn, setSmoothOn] = useState(() => stored("flow-smooth", ["1", "0"], "1") === "1");
+  const [hiddenPower, setHiddenPower] = useState<Set<PowerKey>>(loadHiddenPower);
   const [narrow, setNarrow] = useState(window.innerWidth < 700);
   useEffect(() => {
     const onResize = () => setNarrow(window.innerWidth < 700);
@@ -59,8 +76,19 @@ export function Flow() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  const minutes = RANGES.find((r) => r.key === range)!.minutes;
-  const long = useLongHistory(minutes);
+  const togglePower = (pkey: PowerKey) => {
+    setHiddenPower((prev) => {
+      const next = new Set(prev);
+      if (next.has(pkey)) next.delete(pkey); else next.add(pkey);
+      remember("flow-hidden", [...next].join(","));
+      return next;
+    });
+  };
+  const POWER: Series[] = POWER_DEFS.filter((p) => !hiddenPower.has(p.pkey))
+    .map(({ pkey: _pkey, label, ...rest }) => ({ ...rest, label: t(label) }));
+
+  const spec = RANGES.find((r) => r.key === range)!.spec;
+  const long = useLongHistory(spec);
   const live = range === "live";
   const rows: Reading[] = useMemo(
     () => (live ? (smoothOn ? smooth(history) : history) : long?.rows ?? []),
@@ -110,7 +138,12 @@ export function Flow() {
       </section>
 
       <div className="flow-grid">
-        <Card title={t("fl.chart.power")} legend={POWER.map((p) => <span key={p.label}><i className="sw" style={{ background: p.color }} />{p.label}</span>)}>
+        <Card title={t("fl.chart.power")} legend={POWER_DEFS.map((p) => (
+          <button key={p.pkey} type="button" className={hiddenPower.has(p.pkey) ? "off" : ""}
+            aria-pressed={!hiddenPower.has(p.pkey)} title={t("fl.legend.toggle")} onClick={() => togglePower(p.pkey)}>
+            <i className="sw" style={{ background: p.color }} />{t(p.label)}
+          </button>
+        ))}>
           {chart(POWER, hPower, "W", t("fl.aria.power"))}
         </Card>
         <div className="flow-side">

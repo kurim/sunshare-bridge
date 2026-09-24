@@ -151,6 +151,8 @@ input[aria-invalid="true"] { border-color: var(--bad); }
 .track .mark { position: absolute; top: -.25rem; bottom: -.25rem; width: 2px; background: var(--muted); }
 .track .mark.bad { background: var(--bad); } .track .mark.ok { background: var(--ok); }
 .legend { display: flex; flex-wrap: wrap; gap: .4rem .9rem; font-size: .78rem; color: var(--muted); }
+.legend button { display: inline-flex; align-items: center; background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; }
+.legend button.off { opacity: .45; text-decoration: line-through; }
 .sw { display: inline-block; width: .7rem; height: .7rem; border-radius: 2px; margin-right: .3rem; background: var(--muted); vertical-align: -1px; }
 .sw.bad { background: var(--bad); } .sw.ok { background: var(--ok); }
 .sw.day { background: rgba(56, 189, 248, .5); } .sw.night { background: rgba(255, 183, 3, .6); }

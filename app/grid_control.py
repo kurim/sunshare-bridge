@@ -156,7 +156,6 @@ class GridController:
         self.target_w = float(env("CONTROL_TARGET_W", "20"))  # small import buffer -> avoids export
         self.deadband_w = float(env("CONTROL_DEADBAND_W", "25"))
         self.gain_base = float(env("CONTROL_GAIN", "0.7"))  # the user's own configured value; see _adapt_gain
-        self.gain = self.gain_base
         self.min_w = int(env("CONTROL_MIN_W", "0"))
         self.max_w = int(env("CONTROL_MAX_W", "800"))
         # Default at the low end of the meter-delay window (see CONTROL_MIN_INTERVAL in PLAN_SETTINGS);
@@ -197,10 +196,11 @@ class GridController:
         # surplus - not a fixed reserve - is what ends up in the battery. See _plan_cap.
         self.cover_load = bool(saved.get("cover_load", False))
         # Online-tuned CONTROL_GAIN (see _adapt_gain), off by default: existing installs keep the
-        # fixed gain they already have until they opt in. The learned value is kept across restarts;
-        # turning it off falls back to gain_base, ignoring whatever was learned.
+        # fixed gain they already have until they opt in. `learned_gain` survives toggling the
+        # switch on and off (and restarts) - only the control loop's *use* of it depends on the
+        # switch, via the `gain` property below.
         self.adaptive_gain = bool(saved.get("adaptive_gain", False))
-        self.gain = float(saved.get("gain", self.gain_base))
+        self.learned_gain = float(saved.get("gain", self.gain_base))
         self._prev_error: float | None = None
         self.enabled = bool(saved.get("enabled", False))
         self.dry_run = bool(saved.get("dry_run", True))
@@ -225,6 +225,13 @@ class GridController:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._mqtt: mqtt.Client | None = None
 
+    @property
+    def gain(self) -> float:
+        """The gain the control loop actually applies right now: the online-learned value while
+        adaptive gain is on, the user's own configured CONTROL_GAIN while it's off. Switching the
+        UI toggle off only stops applying/updating `learned_gain` - it never discards it."""
+        return self.learned_gain if self.adaptive_gain else self.gain_base
+
     # ---- persistence / UI ------------------------------------------------
     def _load(self) -> dict[str, Any]:
         try:
@@ -243,7 +250,7 @@ class GridController:
                         "plan": self.plan_enabled,
                         "cover_load": self.cover_load,
                         "adaptive_gain": self.adaptive_gain,
-                        "gain": self.gain,
+                        "gain": self.learned_gain,
                         "restore_w": self.restore_w,
                         "settings": self.settings(),
                         "reserve_base_w": self._reserve_base_w,
@@ -360,6 +367,7 @@ class GridController:
             "cover_load": self.cover_load,
             "adaptive_gain": self.adaptive_gain,
             "gain": round(self.gain, 3),
+            "learned_gain": round(self.learned_gain, 3),
             "phase": self.phase.to_dict() if self.phase else None,
             "est_full_h": est_full_h,
             "est_night_h": est_night_h,
@@ -438,10 +446,7 @@ class GridController:
         if cover_load is not None:
             self.cover_load = cover_load
         if adaptive_gain is not None:
-            self.adaptive_gain = adaptive_gain
-            if not adaptive_gain:
-                self.gain = self.gain_base  # discard whatever was learned; back to the configured value
-                self._prev_error = None
+            self.adaptive_gain = adaptive_gain  # learned_gain is untouched: it survives the toggle
         if was_active and not (self.enabled and not self.dry_run) and self.restore_w is not None:
             ok = await self._client.set_output_power(self.restore_w, self.strategy_type)
             self.last_action = (
@@ -633,14 +638,14 @@ class GridController:
         prev = self._prev_error
         if prev is None or abs(prev) <= self.deadband_w:
             return
-        old = self.gain
+        old = self.learned_gain
         if prev * error < 0:  # crossed the target: overshoot
-            self.gain = max(self.gain * GAIN_SHRINK, GAIN_MIN)
+            self.learned_gain = max(self.learned_gain * GAIN_SHRINK, GAIN_MIN)
         elif abs(error) >= abs(prev) * GAIN_UNDERSHOOT_RATIO:  # barely moved: undershoot
-            self.gain = min(self.gain * GAIN_GROW, GAIN_MAX)
-        if self.gain != old:
+            self.learned_gain = min(self.learned_gain * GAIN_GROW, GAIN_MAX)
+        if self.learned_gain != old:
             self._save()
-            _LOGGER.info("Adaptive gain: %.3f -> %.3f (prev error %.0f W, now %.0f W)", old, self.gain, prev, error)
+            _LOGGER.info("Adaptive gain: %.3f -> %.3f (prev error %.0f W, now %.0f W)", old, self.learned_gain, prev, error)
 
     async def _step(self) -> None:
         if not self.enabled or self.meter_w is None:

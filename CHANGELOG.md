@@ -3,6 +3,24 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [1.0.9] - 2026-09-24
+
+### Bridge
+
+- Fix: Der gelernte Wert der Adaptiven Regelung wurde beim Ausschalten des Schalters verworfen (auf
+  `CONTROL_GAIN` zurückgesetzt und so gespeichert) – erneutes Einschalten begann das Lernen wieder bei
+  null. Der gelernte Wert bleibt jetzt unabhängig vom Schalter erhalten; nur die tatsächlich vom Regler
+  verwendete Verstärkung folgt dem Schalter (gelernter Wert bei „an", `CONTROL_GAIN` bei „aus").
+
+## [1.0.8] - 2026-09-24
+
+### Bridge
+
+- Neu: Die Fluss-Seite (`/app/flow`) bietet jetzt „Heute"/„Gestern" als echte Kalendertage (unterscheiden sich von
+  „24 h" ab Mitternacht) neben den bisherigen Live-/6 h-/24 h-/7 T-/30 T-Ansichten.
+- Neu: Die einzelnen Leistungskurven (PV, WR, Akku, Steckdose, Abgabe Hausnetz) lassen sich per Klick auf die
+  Legende einzeln aus-/einblenden (gemerkt); die Y-Achse skaliert dann nur auf die sichtbaren Kurven.
+
 ## [1.0.7] - 2026-09-24
 
 ### Bridge

@@ -130,7 +130,7 @@ installierbar (Manifest, Service Worker, Safe-Area-Layout, Hell/Dunkel nach Syst
 | Seite | Inhalt |
 |---|---|
 | **Übersicht** `/app/` | Animiertes Energiefluss-Diagramm (Solar, Netz, Batterie, Zuhause; jeder Knoten hat drei Anschlüsse, eine Leitung pro Paar, und es leuchtet nur die Leitung, über die die Energie fließt – z. B. Solar → Batterie und Netz → Zuhause. Ein farbiger Kern mit hellen Leuchtimpulsen läuft in Flussrichtung, Tempo und Dicke folgen der Leistung; Knopf „Animation an/aus“ überstimmt die Systemeinstellung „Bewegung reduzieren“), Ladezustand mit Farbe, Leistungskacheln, Reglerstatus, Login-Fehler der Sunshare-Cloud |
-| **Fluss** `/app/flow` | Charts für Leistung, Netzzähler und SOC: Live (mit Glättung) oder 6 h · 24 h · 7 T · 30 T aus dem Verlauf; Tooltip per Maus/Touch, Lücken als Unterbrechung |
+| **Fluss** `/app/flow` | Charts für Leistung, Netzzähler und SOC: Live (mit Glättung), Heute/Gestern (echte Kalendertage) oder 6 h · 24 h · 7 T · 30 T aus dem Verlauf; Leistungskurven (PV, WR, Akku, Steckdose, Abgabe Hausnetz) per Klick auf die Legende einzeln aus-/einblendbar (gemerkt); Tooltip per Maus/Touch, Lücken als Unterbrechung |
 | **Telemetrie** `/app/telemetry` | Live-Leistungen, SOC mit Schwellen, Erträge und Zähler, Lade-Effizienz, „Ausgang gespeist aus …“ |
 | **Regler** `/app/control` | Regler/Trockenlauf/Plan, Parameter, Plan-Vorschau, Geräte-Grenzen, `.env`-Ansicht |
 | **Raw** `/app/raw` | Jeder Push des Geräts unverändert samt Antwort des Servers, Feldübersicht, Filter, Pause, JSON-Download (nur im Speicher, `RAW_LOG_SIZE`) |
