@@ -4,11 +4,14 @@ output wattage (`permPower`, via updateEmsParaById) so the meter reads ~0.
 
 The device has no smart meter of its own here (`meterList: null`), so its own
 the device's gridPow/loadPow only describe its own socket (grid pass-through resp. the load
-hanging on it), not the household — this is the closest thing to a meter-driven mode.
+hanging on it), not the household — this is the closest thing to a meter-driven mode. That also
+means PV/battery power (which the bridge does see continuously) say nothing about the household
+load between two external meter samples - they aren't a usable feed-forward signal for it.
 
 Safety defaults: disabled and in dry-run (only logs what it would set). The meter
 only reports about once a minute and the command goes cloud -> MQTT -> device, so
-this is a slow, damped controller: one decision per fresh meter sample.
+this is a slow, damped controller: one decision per fresh meter sample. CONTROL_GAIN can
+optionally be tuned online from that decision cadence itself (see _adapt_gain).
 """
 from __future__ import annotations
 
@@ -33,6 +36,15 @@ CONTROL_FILE = Path("/data/control.json")
 INV_MAX_AGE_S = 120  # inverter reading older than this is not trusted as the control base
 EXPORT_GUARD_DECAY_INTERVAL_S = 600  # how rarely the export guard's charge-reserve raise may step back down
 EXPORT_GUARD_DECAY_STEP_W = 10  # ... and by how little each time, so it settles rather than hunts
+
+# Adaptive CONTROL_GAIN (see _adapt_gain): bounded so a bad run can't wind gain up to something that
+# oscillates the real device output, or down to something that never converges. Grow slowly, shrink
+# fast (like TCP's AIMD) - overshoot on a real output is worse than a slightly slow approach.
+GAIN_MIN = 0.3
+GAIN_MAX = 1.2
+GAIN_GROW = 1.05
+GAIN_SHRINK = 0.85
+GAIN_UNDERSHOOT_RATIO = 0.9  # the new error must have shrunk below this fraction of the old one to count as progress
 
 
 def _extract_value(payload: str, path: str | None) -> float | None:
@@ -143,7 +155,8 @@ class GridController:
 
         self.target_w = float(env("CONTROL_TARGET_W", "20"))  # small import buffer -> avoids export
         self.deadband_w = float(env("CONTROL_DEADBAND_W", "25"))
-        self.gain = float(env("CONTROL_GAIN", "0.7"))
+        self.gain_base = float(env("CONTROL_GAIN", "0.7"))  # the user's own configured value; see _adapt_gain
+        self.gain = self.gain_base
         self.min_w = int(env("CONTROL_MIN_W", "0"))
         self.max_w = int(env("CONTROL_MAX_W", "800"))
         # Default at the low end of the meter-delay window (see CONTROL_MIN_INTERVAL in PLAN_SETTINGS);
@@ -183,6 +196,12 @@ class GridController:
         # grid draw first and only divert PV the export guard actually had to claim back, so real
         # surplus - not a fixed reserve - is what ends up in the battery. See _plan_cap.
         self.cover_load = bool(saved.get("cover_load", False))
+        # Online-tuned CONTROL_GAIN (see _adapt_gain), off by default: existing installs keep the
+        # fixed gain they already have until they opt in. The learned value is kept across restarts;
+        # turning it off falls back to gain_base, ignoring whatever was learned.
+        self.adaptive_gain = bool(saved.get("adaptive_gain", False))
+        self.gain = float(saved.get("gain", self.gain_base))
+        self._prev_error: float | None = None
         self.enabled = bool(saved.get("enabled", False))
         self.dry_run = bool(saved.get("dry_run", True))
         self.restore_w: int | None = saved.get("restore_w")
@@ -223,6 +242,8 @@ class GridController:
                         "dry_run": self.dry_run,
                         "plan": self.plan_enabled,
                         "cover_load": self.cover_load,
+                        "adaptive_gain": self.adaptive_gain,
+                        "gain": self.gain,
                         "restore_w": self.restore_w,
                         "settings": self.settings(),
                         "reserve_base_w": self._reserve_base_w,
@@ -337,6 +358,8 @@ class GridController:
         return {
             "plan": self.plan_enabled,
             "cover_load": self.cover_load,
+            "adaptive_gain": self.adaptive_gain,
+            "gain": round(self.gain, 3),
             "phase": self.phase.to_dict() if self.phase else None,
             "est_full_h": est_full_h,
             "est_night_h": est_night_h,
@@ -371,6 +394,7 @@ class GridController:
         dry_run: bool | None = None,
         plan: bool | None = None,
         cover_load: bool | None = None,
+        adaptive_gain: bool | None = None,
         settings: dict[str, Any] | None = None,
         device: dict[str, Any] | None = None,
     ) -> None:
@@ -413,6 +437,11 @@ class GridController:
             self.plan_enabled = plan
         if cover_load is not None:
             self.cover_load = cover_load
+        if adaptive_gain is not None:
+            self.adaptive_gain = adaptive_gain
+            if not adaptive_gain:
+                self.gain = self.gain_base  # discard whatever was learned; back to the configured value
+                self._prev_error = None
         if was_active and not (self.enabled and not self.dry_run) and self.restore_w is not None:
             ok = await self._client.set_output_power(self.restore_w, self.strategy_type)
             self.last_action = (
@@ -589,6 +618,30 @@ class GridController:
         self.last_action = Msg("act.export_guard_relax", "info", old=old, new=new_reserve)
         _LOGGER.info("%s", self.last_action)
 
+    def _adapt_gain(self, error: float) -> None:
+        """Online-tunes CONTROL_GAIN from how the *previous* correction actually played out - the
+        same idea as Better Thermostat's thermal_learning, aimed at the meter's own responsiveness
+        instead of a room's. There is no faster signal to feed forward from: the device has no meter
+        of its own, and PV/battery power say nothing about the household load between two external
+        meter samples (see the module docstring) - so this tunes how hard the existing meter-driven
+        correction should push, not what to do between samples.
+
+        `error` here is the one just measured, `_prev_error` the one the last correction was based
+        on. If the sign flipped, that correction overshot past the target - back off quickly. If the
+        sign held and the error barely shrank, it undershot - ease the gain up a little. Close to
+        converged (previous error already inside the deadband) there is nothing to grade."""
+        prev = self._prev_error
+        if prev is None or abs(prev) <= self.deadband_w:
+            return
+        old = self.gain
+        if prev * error < 0:  # crossed the target: overshoot
+            self.gain = max(self.gain * GAIN_SHRINK, GAIN_MIN)
+        elif abs(error) >= abs(prev) * GAIN_UNDERSHOOT_RATIO:  # barely moved: undershoot
+            self.gain = min(self.gain * GAIN_GROW, GAIN_MAX)
+        if self.gain != old:
+            self._save()
+            _LOGGER.info("Adaptive gain: %.3f -> %.3f (prev error %.0f W, now %.0f W)", old, self.gain, prev, error)
+
     async def _step(self) -> None:
         if not self.enabled or self.meter_w is None:
             return
@@ -636,6 +689,10 @@ class GridController:
             if error > 0 and inv < self.setpoint - self.deadband_w:
                 self.last_action = Msg("act.ok_limit", "ok", meter=round(self.meter_w), inv=round(inv))
                 return
+
+        if self.adaptive_gain:
+            self._adapt_gain(error)
+        self._prev_error = error
 
         new = round(min(max(inv + self.gain * error, self.min_w), cap))
         if new == self.setpoint:

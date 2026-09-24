@@ -1,5 +1,5 @@
 name: Sunshare Bridge
-version: "1.0.6"
+version: "1.0.7"
 slug: sunshare_bridge
 description: >-
   Live-Daten, Verlauf und Nulleinspeisung für Sunshare-Mikro-Wechselrichter mit Batterie:
@@ -61,6 +61,10 @@ options:
   NIGHT_END: "06:00"
   NIGHT_MAX_W: 150
   NIGHT_MIN_SOC: 25
+  OWM_API_KEY: ""
+  OWM_LAT: ""
+  OWM_LON: ""
+  WEATHER_POLL_INTERVAL: 1800
 schema:
   SUNSHARE_USER_ACCOUNT: str
   SUNSHARE_PASSWORD: password
@@ -100,3 +104,7 @@ schema:
   NIGHT_END: str
   NIGHT_MAX_W: int
   NIGHT_MIN_SOC: int
+  OWM_API_KEY: password?
+  OWM_LAT: str?
+  OWM_LON: str?
+  WEATHER_POLL_INTERVAL: int

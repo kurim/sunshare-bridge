@@ -3,6 +3,18 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [1.0.7] - 2026-09-24
+
+### Bridge
+
+- Neu: Schalter „Adaptive Regelung" im Regler (aus per Default) – passt `CONTROL_GAIN` laufend an, statt den festen
+  `.env`-Wert zu nutzen: übersteuert eine Korrektur (Vorzeichenwechsel des Fehlers), wird die Verstärkung sofort
+  gesenkt, reagiert sie zu träge, steigt sie leicht an. Bleibt zwischen 0,3 und 1,2; Ausschalten setzt sie sofort auf
+  den konfigurierten `CONTROL_GAIN` zurück.
+- Neu: optionale Wetter-Prognose (OpenWeatherMap, `OWM_API_KEY`/`OWM_LAT`/`OWM_LON`) – rein informative Dashboard-
+  Kachel mit grober Solar-Einschätzung (Bewölkung, Regenwahrscheinlichkeit) für heute/morgen; ändert nichts am
+  Regler oder Batterie-Plan. Ohne konfigurierten API-Key bleibt sie weg.
+
 ## [1.0.6] - 2026-09-24
 
 ### Bridge

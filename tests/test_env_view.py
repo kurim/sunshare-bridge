@@ -15,6 +15,14 @@ def test_passwords_are_masked_and_never_leaked(monkeypatch):
     assert items["MQTT_PASSWORD"]["value"] == MASK
 
 
+def test_api_keys_are_masked_like_passwords(monkeypatch):
+    monkeypatch.setenv("OWM_API_KEY", "abc123")
+    groups = describe_env()
+    assert "abc123" not in str(groups)
+    items = _items(groups)
+    assert items["OWM_API_KEY"]["value"] == MASK and items["OWM_API_KEY"]["secret"]
+
+
 def test_unset_password_is_empty_and_account_partially_masked(monkeypatch):
     monkeypatch.setenv("SUNSHARE_USER_ACCOUNT", "someone@example.com")
     items = _items(describe_env())
@@ -31,5 +39,5 @@ def test_defaults_are_reported_as_such(monkeypatch):
 
 def test_groups_have_ids_for_translation():
     groups = describe_env()
-    assert [g["id"] for g in groups] == ["account", "ui_login", "mqtt", "source", "intervals", "meter", "controller"]
+    assert [g["id"] for g in groups] == ["account", "ui_login", "mqtt", "source", "intervals", "meter", "controller", "weather"]
     assert all(g["title"] for g in groups)  # English fallback title

@@ -34,6 +34,7 @@ from .mqtt_publisher import MqttPublisher
 from .raw_log import RAW
 from .state import STATE
 from .sunshare_cloud import SunshareCloudClient, SunshareLoginError, guest_from_env
+from .weather import WeatherClient
 
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
 _LOGGER = logging.getLogger("sunshare.main")
@@ -65,7 +66,9 @@ def _redirect(target: str):
     return handler
 
 
-def make_ui_app(controller: GridController, auth: Auth | None = None, web_dir=None) -> web.Application:
+def make_ui_app(
+    controller: GridController, auth: Auth | None = None, web_dir=None, weather: WeatherClient | None = None
+) -> web.Application:
     """`auth` None = no login (LAN only). `web_dir` overrides where the built React app lives."""
     app = web.Application(middlewares=[compress, auth_mod.make_middleware(auth)])
 
@@ -120,16 +123,19 @@ def make_ui_app(controller: GridController, auth: Auth | None = None, web_dir=No
         try:
             data = await request.json()
             enabled, dry_run, plan = data.get("enabled"), data.get("dry_run"), data.get("plan")
-            cover_load = data.get("cover_load")
-            if not all(isinstance(v, bool) or v is None for v in (enabled, dry_run, plan, cover_load)):
-                raise ValueError("enabled/dry_run/plan/cover_load must be booleans")
+            cover_load, adaptive_gain = data.get("cover_load"), data.get("adaptive_gain")
+            if not all(isinstance(v, bool) or v is None for v in (enabled, dry_run, plan, cover_load, adaptive_gain)):
+                raise ValueError("enabled/dry_run/plan/cover_load/adaptive_gain must be booleans")
             settings = data.get("settings")
             if settings is not None and not isinstance(settings, dict):
                 raise ValueError("settings must be an object")
             device = data.get("device")
             if device is not None and not isinstance(device, dict):
                 raise ValueError("device must be an object")
-            await controller.configure(enabled, dry_run, plan, cover_load, settings, device)
+            await controller.configure(
+                enabled=enabled, dry_run=dry_run, plan=plan, cover_load=cover_load,
+                adaptive_gain=adaptive_gain, settings=settings, device=device,
+            )
         except (ValueError, json.JSONDecodeError) as err:
             body = {"error": str(err)}
             if isinstance(err, MsgError):
@@ -170,12 +176,18 @@ def make_ui_app(controller: GridController, auth: Auth | None = None, web_dir=No
     async def get_env(request: web.Request) -> web.Response:
         return web.json_response(describe_env())
 
+    async def get_weather(request: web.Request) -> web.Response:
+        return web.json_response(weather.status() if weather else {
+            "available": False, "today": None, "tomorrow": None, "updated_at": None, "error": None,
+        })
+
     for old, new in LEGACY_REDIRECTS.items():
         app.router.add_get(old, _redirect(new))
     app.router.add_get("/api/raw", get_raw)
     app.router.add_get("/api/raw/stream", raw_stream)
     app.router.add_post("/api/raw/clear", clear_raw)
     app.router.add_get("/api/env", get_env)
+    app.router.add_get("/api/weather", get_weather)
     app.router.add_get("/api/control", get_control)
     app.router.add_post("/api/control", set_control)
     app.router.add_get("/api/state", get_state)
@@ -224,6 +236,25 @@ async def energy_poll_loop(client: SunshareCloudClient, mqtt_pub: MqttPublisher,
         await asyncio.sleep(interval)
 
 
+async def weather_poll_loop(weather: WeatherClient, interval: float) -> None:
+    """No-ops (see WeatherClient.available) unless OWM_API_KEY/OWM_LAT/OWM_LON are all set - runs
+    unconditionally regardless, same as the other poll loops."""
+    while True:
+        try:
+            await weather.poll()
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception("Weather poll failed")
+        await asyncio.sleep(interval)
+
+
+def _optional_float(value: str | None) -> float | None:
+    try:
+        return float(value) if value not in (None, "") else None
+    except ValueError:
+        _LOGGER.warning("Ignoring invalid float env value %r", value)
+        return None
+
+
 async def main() -> None:
     user_account = os.environ["SUNSHARE_USER_ACCOUNT"]
     password = os.environ["SUNSHARE_PASSWORD"]
@@ -242,6 +273,7 @@ async def main() -> None:
     keepalive_interval = float(os.environ.get("KEEPALIVE_INTERVAL", "3"))
     cloud_poll_interval = float(os.environ.get("CLOUD_POLL_INTERVAL", "2"))
     energy_poll_interval = float(os.environ.get("ENERGY_POLL_INTERVAL", "60"))
+    weather_poll_interval = float(os.environ.get("WEATHER_POLL_INTERVAL", "1800"))
 
     mqtt_pub = MqttPublisher(mqtt_host, mqtt_port, mqtt_username, mqtt_password, mqtt_base_topic, device_id)
 
@@ -263,7 +295,11 @@ async def main() -> None:
         await web.TCPSite(lan_runner, "0.0.0.0", lan_port).start()
 
         controller = GridController(client, mqtt_host, mqtt_port, mqtt_username, mqtt_password)
-        ui_runner = web.AppRunner(make_ui_app(controller, Auth.from_env()), access_log=None)
+        weather = WeatherClient(
+            session, os.environ.get("OWM_API_KEY") or None,
+            _optional_float(os.environ.get("OWM_LAT")), _optional_float(os.environ.get("OWM_LON")),
+        )
+        ui_runner = web.AppRunner(make_ui_app(controller, Auth.from_env(), weather=weather), access_log=None)
         await ui_runner.setup()
         await web.TCPSite(ui_runner, "0.0.0.0", ui_port).start()
 
@@ -276,6 +312,7 @@ async def main() -> None:
             keepalive_loop(client, keepalive_interval),
             cloud_poll_loop(client, mqtt_pub, cloud_poll_interval),
             energy_poll_loop(client, mqtt_pub, energy_poll_interval),
+            weather_poll_loop(weather, weather_poll_interval),
             controller.run(),
         )
 

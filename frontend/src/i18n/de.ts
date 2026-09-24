@@ -53,6 +53,13 @@ export const de = {
   "ov.account": "Account: {account} · Entladestopp umgesetzt von {by}",
   "ov.deviceRange": " (Gerät: {min} – {max})",
   "ov.loginRetry": "Nächster Versuch in {min} min. Die Bridge läuft weiter, hält aber keine Verbindung zur Sunshare-Cloud.",
+  "ov.weather": "Wetter-Prognose",
+  "ov.weather.today": "Heute",
+  "ov.weather.tomorrow": "Morgen",
+  "ov.weather.detail": "Bewölkung {clouds} · Regen {pop}",
+  "ov.weather.outlook.sunny": "Sonnig",
+  "ov.weather.outlook.partly": "Teilbewölkt",
+  "ov.weather.outlook.cloudy": "Bewölkt",
   "account.main": "Haupt",
   "account.guest": "Gast",
   "by.device": "dem Gerät",
@@ -96,6 +103,8 @@ export const de = {
   "cc.plan.hint": "Tag laden, Nacht abgeben",
   "cc.coverLoad": "Netzlast abdecken",
   "cc.coverLoad.hint": "Statt fester Ladereserve: Netzbezug zuerst decken, PV-Überschuss in den Akku",
+  "cc.adaptiveGain": "Adaptive Regelung",
+  "cc.adaptiveGain.hint": "Lernt die Verstärkung aus dem Verhalten deines Zählers (aktuell {gain})",
   "cc.badge.running": "RUNNING",
   "cc.badge.simulation": "SIMULATION",
   "cc.badge.off": "AUS",
@@ -358,6 +367,7 @@ export const de = {
   "env.group.intervals": "Intervalle & Verlauf",
   "env.group.meter": "Zähler (MQTT)",
   "env.group.controller": "Regler",
+  "env.group.weather": "Wetter-Prognose (OpenWeatherMap)",
 } as const;
 
 export type Messages = { [K in keyof typeof de]: string };
