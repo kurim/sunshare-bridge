@@ -23,6 +23,18 @@ def _publish(state, reading, t):
     asyncio.run(go())
 
 
+def test_publish_works_without_a_configured_mqtt_broker():
+    """MQTT_HOST unset (dashboard-only use): main.py passes mqtt_pub=None - publish() must still
+    update state/history/SSE, just skip the MQTT publish itself."""
+    state = st.SharedState()
+
+    async def go():
+        await state.publish({"pvPow": 100}, None)
+
+    asyncio.run(go())
+    assert state.latest["pvPow"] == 100
+
+
 def test_export_is_inverter_output_minus_socket_load():
     assert st._derive_export({"invPow": 113, "offGridPow": 33}) == {"exportPow": 80}
     assert st._derive_export({"invPow": 34, "offGridPow": 34}) == {"exportPow": 0}

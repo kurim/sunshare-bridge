@@ -17,6 +17,7 @@ import asyncio
 import json
 import logging
 import os
+import signal
 import time
 
 import aiohttp
@@ -221,7 +222,7 @@ async def keepalive_loop(client: SunshareCloudClient, interval: float) -> None:
         await asyncio.sleep(interval)
 
 
-async def cloud_poll_loop(client: SunshareCloudClient, mqtt_pub: MqttPublisher, interval: float) -> None:
+async def cloud_poll_loop(client: SunshareCloudClient, mqtt_pub: MqttPublisher | None, interval: float) -> None:
     while True:
         try:
             if STATE.mode == "cloud":
@@ -234,7 +235,7 @@ async def cloud_poll_loop(client: SunshareCloudClient, mqtt_pub: MqttPublisher, 
         await asyncio.sleep(interval)
 
 
-async def energy_poll_loop(client: SunshareCloudClient, mqtt_pub: MqttPublisher, interval: float) -> None:
+async def energy_poll_loop(client: SunshareCloudClient, mqtt_pub: MqttPublisher | None, interval: float) -> None:
     """Cumulative PV yield (kWh) — separate from the power-flow source above,
     runs regardless of cloud/lan display mode, needed for HA's Energy dashboard."""
     while True:
@@ -267,13 +268,26 @@ def _optional_float(value: str | None) -> float | None:
 
 
 async def main() -> None:
+    # Plain `python -m app.main` is PID 1 in the container, with no init process to translate a
+    # `docker stop`'s SIGTERM into a clean exit: Python's own default SIGTERM disposition just
+    # kills the interpreter outright, so the container exits non-zero and Home Assistant's
+    # Supervisor shows the add-on as "Error" instead of "Stopped". Catching it and returning from
+    # main() normally instead gives a clean exit 0.
+    stop = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        loop.add_signal_handler(sig, stop.set)
+
     user_account = os.environ["SUNSHARE_USER_ACCOUNT"]
     password = os.environ["SUNSHARE_PASSWORD"]
     device_id = int(os.environ["SUNSHARE_DEVICE_ID"])
     device_sn = os.environ["SUNSHARE_DEVICE_SN"]
     guest = guest_from_env(os.environ.get("SUNSHARE_USER_GUEST"))
 
-    mqtt_host = os.environ["MQTT_HOST"]
+    # Optional: without a broker the bridge still works as a pure dashboard (live view, history,
+    # telemetry) - just without Home Assistant discovery and without the grid controller's meter
+    # (which is only ever reachable via MQTT in the first place, see grid_control.py).
+    mqtt_host = os.environ.get("MQTT_HOST") or None
     mqtt_port = int(os.environ.get("MQTT_PORT", "1883"))
     mqtt_username = os.environ.get("MQTT_USERNAME") or None
     mqtt_password = os.environ.get("MQTT_PASSWORD") or None
@@ -286,7 +300,11 @@ async def main() -> None:
     energy_poll_interval = float(os.environ.get("ENERGY_POLL_INTERVAL", "60"))
     weather_poll_interval = float(os.environ.get("WEATHER_POLL_INTERVAL", "1800"))
 
-    mqtt_pub = MqttPublisher(mqtt_host, mqtt_port, mqtt_username, mqtt_password, mqtt_base_topic, device_id)
+    mqtt_pub: MqttPublisher | None = None
+    if mqtt_host:
+        mqtt_pub = MqttPublisher(mqtt_host, mqtt_port, mqtt_username, mqtt_password, mqtt_base_topic, device_id)
+    else:
+        _LOGGER.info("No MQTT broker configured (MQTT_HOST unset): running dashboard-only, no Home Assistant discovery")
 
     async with aiohttp.ClientSession() as session:
         client = SunshareCloudClient(session, user_account, password, device_id, device_sn, guest)
@@ -319,13 +337,22 @@ async def main() -> None:
             lan_port, ui_port, STATE.mode, device_id, device_sn, "guest" if guest else "main",
         )
 
-        await asyncio.gather(
+        background = asyncio.gather(
             keepalive_loop(client, keepalive_interval),
             cloud_poll_loop(client, mqtt_pub, cloud_poll_interval),
             energy_poll_loop(client, mqtt_pub, energy_poll_interval),
             weather_poll_loop(weather, weather_poll_interval),
             controller.run(),
         )
+        await stop.wait()
+        _LOGGER.info("Stop signal received, shutting down")
+        background.cancel()
+        try:
+            await background
+        except asyncio.CancelledError:
+            pass
+        await ui_runner.cleanup()
+        await lan_runner.cleanup()
 
 
 if __name__ == "__main__":

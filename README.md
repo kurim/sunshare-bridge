@@ -57,11 +57,13 @@ _Dashboard, Animation und Telemetrie sind Aufnahmen einer laufenden Bridge; Flus
 
 ## Voraussetzungen
 
-- Docker (Compose) auf einem Rechner im selben LAN wie der Wechselrichter, ein MQTT-Broker (z. B. Mosquitto/Home
-  Assistant).
+- Docker (Compose) auf einem Rechner im selben LAN wie der Wechselrichter. Ein MQTT-Broker (z. B. Mosquitto/Home
+  Assistant) ist **optional** – ohne `MQTT_HOST` läuft die Bridge als reines Dashboard (Live-Ansicht, Verlauf,
+  Telemetrie), nur ohne Home-Assistant-Discovery und ohne Regler (siehe unten).
 - Für `DATA_SOURCE=lan`: ein Router, der Ziel-NAT pro Quell-IP kann (Anleitung für UniFi unten). Ohne Router-Eingriff
   geht `DATA_SOURCE=cloud`.
-- Für den Regler: ein Netzzähler, der per MQTT veröffentlicht wird (positiv = Bezug).
+- Für den Regler: zusätzlich ein MQTT-Broker und ein Netzzähler, der dort veröffentlicht wird (positiv = Bezug) –
+  das ist der einzige Weg, wie die Bridge an den Netzbezug kommt (das Gerät hat keinen eigenen Zähler).
 
 ## Schnellstart
 
@@ -80,8 +82,9 @@ cp .env.example .env
 python3 scripts/sunshare_login.py devices       # zeigt "id" und "sn" deines Geräts
 ```
 
-Trag `id` als `SUNSHARE_DEVICE_ID` und `sn` als `SUNSHARE_DEVICE_SN` in die `.env` ein, dazu `MQTT_HOST` (und ggf.
-Benutzer/Passwort). Alle Optionen stehen kommentiert in [`.env.example`](.env.example).
+Trag `id` als `SUNSHARE_DEVICE_ID` und `sn` als `SUNSHARE_DEVICE_SN` in die `.env` ein. `MQTT_HOST` (und ggf.
+Benutzer/Passwort) nur setzen, wenn du Home-Assistant-Discovery und/oder den Regler willst – leer gelassen läuft
+die Bridge als reines Dashboard. Alle Optionen stehen kommentiert in [`.env.example`](.env.example).
 
 ### 3. Starten
 
@@ -89,13 +92,16 @@ Benutzer/Passwort). Alle Optionen stehen kommentiert in [`.env.example`](.env.ex
 docker compose up -d
 ```
 
-Web-UI: `http://<docker-host>:8099`. In Home Assistant erscheint unter MQTT das Gerät **„Sunshare Inverter“**.
+Web-UI: `http://<docker-host>:8099`. Mit gesetztem `MQTT_HOST` erscheint in Home Assistant unter MQTT das Gerät
+**„Sunshare Inverter“**; ohne `MQTT_HOST` läuft die Bridge als reines Dashboard.
 
 ### 4. Datenquelle wählen
 
-- **`cloud`** (`DATA_SOURCE=cloud`): funktioniert sofort, die Bridge fragt die Cloud alle 2 s ab.
+- **`cloud`** (`DATA_SOURCE=cloud`): funktioniert sofort, die Bridge fragt die Cloud alle 2 s ab. Liefert weder die
+  Steckdosen-Leistung noch die „Real“-Werte noch die Abgabe ins Hausnetz (die Cloud-API hat diese Felder schlicht
+  nicht) – die Web-UI blendet die entsprechenden Kacheln/Zeilen/Kurven dann aus, statt sie als „–“ anzuzeigen.
 - **`lan`** (Default): braucht die [NAT-Regel](#unifi-nat-regel-für-lan-modus). Vorteil: die Werte kommen direkt vom
-  Gerät, ohne Cloud-Abfrage.
+  Gerät, ohne Cloud-Abfrage, inklusive der oben genannten Zusatzfelder.
 
 In beiden Fällen läuft ein Keepalive (`openRealTime`) gegen die Cloud – ohne ihn pusht das Gerät keine Live-Daten.
 
@@ -197,6 +203,10 @@ Docker-Compose-Variante darf er **nie** von außen erreichbar sein.
 `UI_USER`/`UI_PASSWORD` gelten auch unter Ingress unverändert und werden weiterhin empfohlen (siehe
 [Sicherheit](#sicherheit)) – Ingress ist nur der Transportweg, keine Authentifizierung.
 
+**Sauberes Stoppen:** Die Bridge reagiert auf SIGTERM/SIGINT (Stopp-Knopf im Add-on bzw. `docker stop`) mit
+einem geordneten Shutdown (Hintergrund-Loops abbrechen, Server schließen) und beendet sich mit Exit-Code 0 –
+der Supervisor zeigt danach „Gestoppt“ statt „Fehler“.
+
 ## Nulleinspeisung und Batterie-Plan
 
 Der Regler liest einen Netzzähler aus MQTT und stellt die Ausgangsleistung des Wechselrichters (`permPower`) so ein,
@@ -256,7 +266,7 @@ Alles über `.env` (Vorlage: [`.env.example`](.env.example)). Wichtigste Variabl
 | `SUNSHARE_USER_ACCOUNT`, `SUNSHARE_PASSWORD` | Account der Bridge (eingeladener Nutzer empfohlen) |
 | `SUNSHARE_USER_GUEST` | `TRUE` (Default): eingeladener Account, `NIGHT_MIN_SOC` setzt nur die Bridge um. `FALSE`: Haupt-Account, `NIGHT_MIN_SOC` wird zusätzlich als Entladestopp (`socMin`, max. 20 %) ins Gerät geschrieben und die Einspeise-Grenze `countryMaxPower` ist änderbar (Schreiben nur bei aktivem Regler ohne Trockenlauf) |
 | `SUNSHARE_DEVICE_ID`, `SUNSHARE_DEVICE_SN` | aus `scripts/sunshare_login.py devices` |
-| `MQTT_HOST`, `MQTT_PORT`, `MQTT_USERNAME`, `MQTT_PASSWORD`, `MQTT_BASE_TOPIC` | MQTT-Broker (Default-Port 1883, Topic `sunshare`) |
+| `MQTT_HOST`, `MQTT_PORT`, `MQTT_USERNAME`, `MQTT_PASSWORD`, `MQTT_BASE_TOPIC` | MQTT-Broker (Default-Port 1883, Topic `sunshare`); `MQTT_HOST` leer = reines Dashboard, kein Discovery, Regler bleibt untätig |
 | `DATA_SOURCE` | `lan` (Default) oder `cloud` |
 | `HISTORY_RETENTION_DAYS` | Aufbewahrung des Verlaufs (Default 30) |
 | `RAW_LOG_SIZE` | Größe des Roh-Log-Puffers (Default 500) |

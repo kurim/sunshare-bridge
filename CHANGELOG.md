@@ -3,6 +3,26 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [1.0.11] - 2026-09-25
+
+### Bridge
+
+- Neu: `MQTT_HOST` ist jetzt optional – leer gelassen läuft die Bridge als reines Dashboard (Live-Ansicht, Verlauf,
+  Telemetrie) ohne Home-Assistant-Discovery; der Regler bleibt dann untätig (er kommt ausschließlich per MQTT an
+  den externen Netzzähler).
+- Neu: Im Cloud-Modus (`DATA_SOURCE=cloud`) blendet die Web-UI Felder aus, die die Cloud-API grundsätzlich nicht
+  liefert (Steckdosen-Leistung, „Real“-Werte, Abgabe ins Hausnetz/Steckdosen-Herkunft), statt sie dauerhaft als
+  „–“ anzuzeigen.
+
+## [1.0.10] - 2026-09-25
+
+### Bridge
+
+- Fix: Beim Stoppen des Add-ons (Stopp-Knopf im Supervisor bzw. `docker stop`) zeigte Home Assistant
+  „Fehler" statt „Gestoppt" – die Bridge lief als PID 1 ohne Init-Prozess und ohne eigene Signal-Behandlung,
+  Pythons Standardreaktion auf SIGTERM beendet den Prozess mit einem von 0 verschiedenen Exit-Code. Die
+  Bridge fängt SIGTERM/SIGINT jetzt ab, fährt geordnet herunter und beendet sich mit Exit-Code 0.
+
 ## [1.0.9] - 2026-09-24
 
 ### Bridge

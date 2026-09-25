@@ -6,15 +6,17 @@ import { useT, type Key } from "./i18n";
 import { batteryEfficiency, EFF_MIN_KWH, exportW, hms, socketSource } from "./lib";
 import { useLiveData } from "./live";
 
-const POWER_ROWS: { key: keyof Reading | "_export" | "_meter"; label: Key; real?: keyof Reading }[] = [
+// `lanOnly`: fields cloud mode never has at all (see app/models.py's normalize_cloud) - hidden
+// entirely in that mode rather than shown as an always-"–" row, which would look like a fault.
+const POWER_ROWS: { key: keyof Reading | "_export" | "_meter"; label: Key; real?: keyof Reading; lanOnly?: boolean }[] = [
   { key: "pvPow", label: "te.p.pvPow", real: "pvPreal" },
   { key: "pv1Pow", label: "te.p.pv1Pow" },
   { key: "pv2Pow", label: "te.p.pv2Pow" },
   { key: "invPow", label: "te.p.invPow" },
   { key: "batPow", label: "te.p.batPow", real: "batPreal" },
-  { key: "offGridPow", label: "te.p.offGridPow" },
+  { key: "offGridPow", label: "te.p.offGridPow", lanOnly: true },
   { key: "loadPow", label: "te.p.loadPow" },
-  { key: "_export", label: "te.p.export" },
+  { key: "_export", label: "te.p.export", lanOnly: true },
   { key: "gridPow", label: "te.p.gridPow" },
   { key: "_meter", label: "te.p.meter" },
 ];
@@ -40,7 +42,8 @@ function Chip({ color, label, value, max }: { color: string; label: string; valu
 
 export function Telemetry() {
   const t = useT();
-  const { reading, control } = useLiveData();
+  const { reading, control, mode } = useLiveData();
+  const cloudMode = mode === "cloud";
   const now = useNow(1000);
   const r: Reading = reading ?? {};
   const meter = control?.meter_w ?? null;
@@ -75,7 +78,7 @@ export function Telemetry() {
             <Chip color="var(--c-pv)" label={t("te.chip.pv")} value={r.pvPow} max={max} />
             <Chip color="var(--c-inv)" label={t("te.chip.inv")} value={r.invPow} max={max} />
             <Chip color="var(--c-bat)" label={t("te.chip.bat")} value={r.batPow} max={max} />
-            <Chip color="var(--c-socket)" label={t("te.chip.socket")} value={r.offGridPow} max={max} />
+            {!cloudMode && <Chip color="var(--c-socket)" label={t("te.chip.socket")} value={r.offGridPow} max={max} />}
             <Chip color="var(--c-grid)" label={t("te.chip.grid")} value={meter ?? r.gridPow} max={max} />
           </div>
         </section>
@@ -101,7 +104,7 @@ export function Telemetry() {
         <section className="card">
           <h2>{t("te.power")}</h2>
           <div className="rows">
-            {POWER_ROWS.map((row) => {
+            {POWER_ROWS.filter((row) => !cloudMode || !row.lanOnly).map((row) => {
               const v = valueOf(row.key);
               const real = row.real ? r[row.real] : null;
               const on = (row.key === "pv1Pow" || row.key === "pv2Pow") && (v ?? 0) > 0;
@@ -125,7 +128,7 @@ export function Telemetry() {
               <span>{t("te.eff")}</span>
               <b>{!eff ? "–" : eff.pending ? t("te.eff.collecting", { a: fmt(eff.charged, "", 2), b: fmt(EFF_MIN_KWH, "", 2) }) : fmt(eff.pct, "%", 1)}</b>
             </div>
-            <div className="row"><span>{t("te.socketSource")}</span><b>{sourceText}</b></div>
+            {!cloudMode && <div className="row"><span>{t("te.socketSource")}</span><b>{sourceText}</b></div>}
             <div className="row"><span>{t("te.mqttMeter")}</span><b>{control ? (control.mqtt_connected ? (control.meter_w != null ? t("te.meter.receiving") : t("te.meter.waiting")) : t("cc.diag.disconnected")) : "–"}</b></div>
             <div className="row"><span>{t("te.meterAge")}</span><b>{control?.meter_age_s != null ? `${control.meter_age_s} s` : "–"}</b></div>
           </div>

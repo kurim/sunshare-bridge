@@ -51,7 +51,11 @@ function FlowBadge({ discharging, text }: { discharging: boolean; text: string }
 export function Overview() {
   const t = useT();
   const tm = useMsg();
-  const { reading, control, weather } = useLiveData();
+  const { reading, control, weather, mode } = useLiveData();
+  // Cloud mode has no socket/feed-in split (see app/models.py's normalize_cloud): those fields
+  // never arrive at all, so showing "–" tiles for them would look like a fault rather than a
+  // difference between data sources - hide the tiles outright instead.
+  const cloudMode = mode === "cloud";
   const login = control?.cloud_login;
   const soc = reading?.soc ?? null;
   const bat = reading?.batPow ?? null;
@@ -87,8 +91,8 @@ export function Overview() {
           <Tile icon={<BatteryIcon soc={soc} />} color={levelColor} label={t("ov.battery")} value={fmt(bat === null ? null : Math.abs(bat), "W")}
             badge={bat === null || bat === 0 ? undefined : <FlowBadge discharging={bat > 0} text={bat > 0 ? t("ov.discharging") : t("ov.charging")} />} />
           <Tile icon={<Icon name="inverter" />} color="var(--c-inv)" label={t("ov.inverter")} value={fmt(reading?.invPow, "W")} />
-          <Tile icon={<Icon name="house" />} color="var(--c-export)" label={t("ov.toGrid")} value={fmt(reading?.exportPow, "W")} />
-          <Tile icon={<Icon name="plug" />} color="var(--c-socket)" label={t("ov.socket")} value={fmt(reading?.offGridPow, "W")} />
+          {!cloudMode && <Tile icon={<Icon name="house" />} color="var(--c-export)" label={t("ov.toGrid")} value={fmt(reading?.exportPow, "W")} />}
+          {!cloudMode && <Tile icon={<Icon name="plug" />} color="var(--c-socket)" label={t("ov.socket")} value={fmt(reading?.offGridPow, "W")} />}
           <Tile icon={<Icon name="gauge" />} color="var(--c-grid)" label={t("ov.meter")} value={fmt(reading?.meterPow, "W")}
             hint={meterAgeS != null ? t("ov.meterAge", { s: fmt(meterAgeS, "s") }) : undefined} />
         </section>

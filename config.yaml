@@ -1,5 +1,5 @@
 name: Sunshare Bridge
-version: "1.0.9"
+version: "1.0.11"
 slug: sunshare_bridge
 description: >-
   Live-Daten, Verlauf und Nulleinspeisung für Sunshare-Mikro-Wechselrichter mit Batterie:
@@ -71,7 +71,7 @@ schema:
   SUNSHARE_DEVICE_ID: int
   SUNSHARE_DEVICE_SN: str
   SUNSHARE_USER_GUEST: bool
-  MQTT_HOST: str
+  MQTT_HOST: str?
   MQTT_PORT: port
   MQTT_USERNAME: str?
   MQTT_PASSWORD: password?
