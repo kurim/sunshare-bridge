@@ -171,11 +171,13 @@ class SharedState:
             return DEFAULT_MODE
         return mode
 
-    async def publish(self, reading: dict[str, Any], mqtt_pub) -> None:
+    async def publish(self, reading: dict[str, Any], mqtt_pub: Any) -> None:
         """Merges `reading` into the last-known state rather than replacing it,
         so fields updated on different cadences (e.g. power every few seconds,
         energy totals every minute) don't wipe each other out on the retained
-        MQTT state topic."""
+        MQTT state topic. `mqtt_pub` is None when no broker is configured
+        (MQTT_HOST unset - dashboard-only use): the merge/history/SSE side still
+        runs, only the MQTT publish itself is skipped."""
         async with self.lock:
             merged = {**(self.latest or {}), **reading}
             merged.update(_derive_battery_flow(merged))
@@ -222,7 +224,8 @@ class SharedState:
             merged["batDischargeEnergyKwh"] = round(self._bat_discharge_kwh, 4)
             self.latest = merged
             self.history.append(merged)
-        mqtt_pub.publish_state(merged)
+        if mqtt_pub is not None:
+            mqtt_pub.publish_state(merged)
         self._broadcast()
 
     async def get_history(self) -> list[dict[str, Any]]:

@@ -137,7 +137,7 @@ class GridController:
     def __init__(
         self,
         client: SunshareCloudClient,
-        mqtt_host: str,
+        mqtt_host: str | None,
         mqtt_port: int,
         mqtt_username: str | None,
         mqtt_password: str | None,
@@ -519,14 +519,20 @@ class GridController:
     async def run(self) -> None:
         self._loop = asyncio.get_running_loop()
         host, port, user, password = self._mqtt_conn
-        self._mqtt = mqtt.Client(client_id="sunshare-bridge-gridctl")
-        if user:
-            self._mqtt.username_pw_set(user, password)
-        self._mqtt.on_connect = self._on_connect
-        self._mqtt.on_message = self._on_message
-        self._mqtt.on_disconnect = self._on_disconnect
-        self._mqtt.connect_async(host, port)
-        self._mqtt.loop_start()
+        if host:
+            self._mqtt = mqtt.Client(client_id="sunshare-bridge-gridctl")
+            if user:
+                self._mqtt.username_pw_set(user, password)
+            self._mqtt.on_connect = self._on_connect
+            self._mqtt.on_message = self._on_message
+            self._mqtt.on_disconnect = self._on_disconnect
+            self._mqtt.connect_async(host, port)
+            self._mqtt.loop_start()
+        else:
+            # No broker at all (dashboard-only use, see MQTT_HOST in .env.example): the meter-
+            # driven controller can never do anything without it - same as "stays idle" when a
+            # broker is configured but no meter topic is, just one level up.
+            _LOGGER.info("No MQTT broker configured (MQTT_HOST unset): the grid controller stays idle")
         try:
             await self.sync_device_limits()
         except Exception:

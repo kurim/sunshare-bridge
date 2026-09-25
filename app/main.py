@@ -222,7 +222,7 @@ async def keepalive_loop(client: SunshareCloudClient, interval: float) -> None:
         await asyncio.sleep(interval)
 
 
-async def cloud_poll_loop(client: SunshareCloudClient, mqtt_pub: MqttPublisher, interval: float) -> None:
+async def cloud_poll_loop(client: SunshareCloudClient, mqtt_pub: MqttPublisher | None, interval: float) -> None:
     while True:
         try:
             if STATE.mode == "cloud":
@@ -235,7 +235,7 @@ async def cloud_poll_loop(client: SunshareCloudClient, mqtt_pub: MqttPublisher, 
         await asyncio.sleep(interval)
 
 
-async def energy_poll_loop(client: SunshareCloudClient, mqtt_pub: MqttPublisher, interval: float) -> None:
+async def energy_poll_loop(client: SunshareCloudClient, mqtt_pub: MqttPublisher | None, interval: float) -> None:
     """Cumulative PV yield (kWh) — separate from the power-flow source above,
     runs regardless of cloud/lan display mode, needed for HA's Energy dashboard."""
     while True:
@@ -284,7 +284,10 @@ async def main() -> None:
     device_sn = os.environ["SUNSHARE_DEVICE_SN"]
     guest = guest_from_env(os.environ.get("SUNSHARE_USER_GUEST"))
 
-    mqtt_host = os.environ["MQTT_HOST"]
+    # Optional: without a broker the bridge still works as a pure dashboard (live view, history,
+    # telemetry) - just without Home Assistant discovery and without the grid controller's meter
+    # (which is only ever reachable via MQTT in the first place, see grid_control.py).
+    mqtt_host = os.environ.get("MQTT_HOST") or None
     mqtt_port = int(os.environ.get("MQTT_PORT", "1883"))
     mqtt_username = os.environ.get("MQTT_USERNAME") or None
     mqtt_password = os.environ.get("MQTT_PASSWORD") or None
@@ -297,7 +300,11 @@ async def main() -> None:
     energy_poll_interval = float(os.environ.get("ENERGY_POLL_INTERVAL", "60"))
     weather_poll_interval = float(os.environ.get("WEATHER_POLL_INTERVAL", "1800"))
 
-    mqtt_pub = MqttPublisher(mqtt_host, mqtt_port, mqtt_username, mqtt_password, mqtt_base_topic, device_id)
+    mqtt_pub: MqttPublisher | None = None
+    if mqtt_host:
+        mqtt_pub = MqttPublisher(mqtt_host, mqtt_port, mqtt_username, mqtt_password, mqtt_base_topic, device_id)
+    else:
+        _LOGGER.info("No MQTT broker configured (MQTT_HOST unset): running dashboard-only, no Home Assistant discovery")
 
     async with aiohttp.ClientSession() as session:
         client = SunshareCloudClient(session, user_account, password, device_id, device_sn, guest)

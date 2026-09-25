@@ -231,6 +231,15 @@ def test_no_meter_configured_is_fine():
     assert c.config_topic == "" and c.state_topic is None
 
 
+def test_run_stays_idle_without_a_configured_broker():
+    """MQTT_HOST unset (dashboard-only use, see .env.example): run() must not try to build an MQTT
+    client at all - no host to connect to."""
+    c = GridController(None, None, 1883, None, None)
+    with pytest.raises(asyncio.TimeoutError):
+        asyncio.run(asyncio.wait_for(c.run(), timeout=0.05))
+    assert c._mqtt is None
+
+
 # ---- main account (device-side limits) vs. guest account (bridge logic) ----------------
 
 import time

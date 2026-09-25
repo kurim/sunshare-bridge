@@ -3,6 +3,17 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [Unreleased]
+
+### Bridge
+
+- Neu: `MQTT_HOST` ist jetzt optional – leer gelassen läuft die Bridge als reines Dashboard (Live-Ansicht, Verlauf,
+  Telemetrie) ohne Home-Assistant-Discovery; der Regler bleibt dann untätig (er kommt ausschließlich per MQTT an
+  den externen Netzzähler).
+- Neu: Im Cloud-Modus (`DATA_SOURCE=cloud`) blendet die Web-UI Felder aus, die die Cloud-API grundsätzlich nicht
+  liefert (Steckdosen-Leistung, „Real“-Werte, Abgabe ins Hausnetz/Steckdosen-Herkunft), statt sie dauerhaft als
+  „–“ anzuzeigen.
+
 ## [1.0.10] - 2026-09-25
 
 ### Bridge

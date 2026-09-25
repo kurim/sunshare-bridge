@@ -11,13 +11,15 @@ const POWER_KEYS = ["pv", "inv", "bat", "socket", "export"] as const;
 type PowerKey = (typeof POWER_KEYS)[number];
 
 /** One entry per line in the power chart; `pkey` is what the on/off legend and its localStorage
- * persistence key on, independent of the (translated) label or the Reading field it reads. */
-const POWER_DEFS: { pkey: PowerKey; key: keyof Reading; fallback?: keyof Reading; label: Key; color: string; width: number }[] = [
+ * persistence key on, independent of the (translated) label or the Reading field it reads.
+ * `lanOnly`: cloud mode never has this field at all (see app/models.py's normalize_cloud) - the
+ * line would just always be empty, so it's dropped from the legend entirely in that mode. */
+const POWER_DEFS: { pkey: PowerKey; key: keyof Reading; fallback?: keyof Reading; label: Key; color: string; width: number; lanOnly?: boolean }[] = [
   { pkey: "pv", key: "pvPreal", fallback: "pvPow", label: "fl.s.pv", color: "var(--c-pv)", width: 2 },
   { pkey: "inv", key: "invPow", label: "fl.s.inv", color: "var(--c-inv)", width: 1.75 },
   { pkey: "bat", key: "batPreal", fallback: "batPow", label: "fl.s.bat", color: "var(--c-bat)", width: 1.5 },
-  { pkey: "socket", key: "offGridPow", label: "fl.s.socket", color: "var(--c-socket)", width: 1.5 },
-  { pkey: "export", key: "exportPow", label: "fl.s.export", color: "var(--c-export)", width: 1.5 },
+  { pkey: "socket", key: "offGridPow", label: "fl.s.socket", color: "var(--c-socket)", width: 1.5, lanOnly: true },
+  { pkey: "export", key: "exportPow", label: "fl.s.export", color: "var(--c-export)", width: 1.5, lanOnly: true },
 ];
 const meterSeries = (t: Translate): Series[] => [{ key: "meterPow", label: t("fl.s.meter"), color: "var(--c-grid)", width: 1.75 }];
 const socSeries = (t: Translate): Series[] => [{ key: "soc", label: t("fl.s.soc"), color: "var(--c-soc)", width: 1.75 }];
@@ -64,7 +66,9 @@ function Card({ title, legend, children }: { title: string; legend: React.ReactN
 
 export function Flow() {
   const t = useT();
-  const { history, control } = useLiveData();
+  const { history, control, mode } = useLiveData();
+  const cloudMode = mode === "cloud";
+  const POWER_DEFS_SHOWN = POWER_DEFS.filter((p) => !cloudMode || !p.lanOnly);
   const METER = meterSeries(t), SOC = socSeries(t);
   const [range, setRange] = useState(() => stored("flow-range", RANGES.map((r) => r.key), "live"));
   const [smoothOn, setSmoothOn] = useState(() => stored("flow-smooth", ["1", "0"], "1") === "1");
@@ -84,7 +88,7 @@ export function Flow() {
       return next;
     });
   };
-  const POWER: Series[] = POWER_DEFS.filter((p) => !hiddenPower.has(p.pkey))
+  const POWER: Series[] = POWER_DEFS_SHOWN.filter((p) => !hiddenPower.has(p.pkey))
     .map(({ pkey: _pkey, label, ...rest }) => ({ ...rest, label: t(label) }));
 
   const spec = RANGES.find((r) => r.key === range)!.spec;
@@ -138,7 +142,7 @@ export function Flow() {
       </section>
 
       <div className="flow-grid">
-        <Card title={t("fl.chart.power")} legend={POWER_DEFS.map((p) => (
+        <Card title={t("fl.chart.power")} legend={POWER_DEFS_SHOWN.map((p) => (
           <button key={p.pkey} type="button" className={hiddenPower.has(p.pkey) ? "off" : ""}
             aria-pressed={!hiddenPower.has(p.pkey)} title={t("fl.legend.toggle")} onClick={() => togglePower(p.pkey)}>
             <i className="sw" style={{ background: p.color }} />{t(p.label)}
