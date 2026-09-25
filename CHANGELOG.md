@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [Unreleased]
+
+### Bridge
+
+- Fix: Beim Stoppen des Add-ons (Stopp-Knopf im Supervisor bzw. `docker stop`) zeigte Home Assistant
+  „Fehler" statt „Gestoppt" – die Bridge lief als PID 1 ohne Init-Prozess und ohne eigene Signal-Behandlung,
+  Pythons Standardreaktion auf SIGTERM beendet den Prozess mit einem von 0 verschiedenen Exit-Code. Die
+  Bridge fängt SIGTERM/SIGINT jetzt ab, fährt geordnet herunter und beendet sich mit Exit-Code 0.
+
 ## [1.0.9] - 2026-09-24
 
 ### Bridge

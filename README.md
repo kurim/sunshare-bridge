@@ -197,6 +197,10 @@ Docker-Compose-Variante darf er **nie** von außen erreichbar sein.
 `UI_USER`/`UI_PASSWORD` gelten auch unter Ingress unverändert und werden weiterhin empfohlen (siehe
 [Sicherheit](#sicherheit)) – Ingress ist nur der Transportweg, keine Authentifizierung.
 
+**Sauberes Stoppen:** Die Bridge reagiert auf SIGTERM/SIGINT (Stopp-Knopf im Add-on bzw. `docker stop`) mit
+einem geordneten Shutdown (Hintergrund-Loops abbrechen, Server schließen) und beendet sich mit Exit-Code 0 –
+der Supervisor zeigt danach „Gestoppt“ statt „Fehler“.
+
 ## Nulleinspeisung und Batterie-Plan
 
 Der Regler liest einen Netzzähler aus MQTT und stellt die Ausgangsleistung des Wechselrichters (`permPower`) so ein,
