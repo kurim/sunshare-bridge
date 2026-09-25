@@ -21,7 +21,7 @@ _GROUPS: list[tuple[str, str, list[tuple[str, str | None]]]] = [
     ("ui_login", "Web UI login", [("UI_USER", None), ("UI_PASSWORD", None), ("UI_SESSION_SECRET", None)]),
     ("mqtt", "MQTT broker", [
         ("MQTT_HOST", None), ("MQTT_PORT", "1883"), ("MQTT_USERNAME", None),
-        ("MQTT_PASSWORD", None), ("MQTT_BASE_TOPIC", "sunshare"),
+        ("MQTT_PASSWORD", None), ("MQTT_BASE_TOPIC", "sunshare"), ("MQTT_PUBLISH", "TRUE"),
     ]),
     ("source", "Data source & network", [
         ("DATA_SOURCE", "lan"), ("UI_PORT", "8099"), ("LAN_PORT", "80"), ("TZ", None), ("LOG_LEVEL", "INFO"),

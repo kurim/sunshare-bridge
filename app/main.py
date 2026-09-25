@@ -267,6 +267,13 @@ def _optional_float(value: str | None) -> float | None:
         return None
 
 
+def _env_bool(value: str | None, default: bool) -> bool:
+    """Same "FALSE"/"0"/"no"/"off" convention as guest_from_env, generalized to any default."""
+    if value is None or not value.strip():
+        return default
+    return value.strip().lower() not in ("false", "0", "no", "off")
+
+
 async def main() -> None:
     # Plain `python -m app.main` is PID 1 in the container, with no init process to translate a
     # `docker stop`'s SIGTERM into a clean exit: Python's own default SIGTERM disposition just
@@ -284,14 +291,18 @@ async def main() -> None:
     device_sn = os.environ["SUNSHARE_DEVICE_SN"]
     guest = guest_from_env(os.environ.get("SUNSHARE_USER_GUEST"))
 
-    # Optional: without a broker the bridge still works as a pure dashboard (live view, history,
-    # telemetry) - just without Home Assistant discovery and without the grid controller's meter
-    # (which is only ever reachable via MQTT in the first place, see grid_control.py).
+    # MQTT_HOST optional: without a broker the bridge still works as a pure dashboard (live view,
+    # history, telemetry) - just without Home Assistant discovery and without the grid
+    # controller's meter (which is only ever reachable via MQTT in the first place, see
+    # grid_control.py). MQTT_PUBLISH is the finer-grained case: a broker configured purely so the
+    # controller can read an external meter, without the bridge also publishing its own discovery/
+    # state topic to it (e.g. Home Assistant already has the device via a different integration).
     mqtt_host = os.environ.get("MQTT_HOST") or None
     mqtt_port = int(os.environ.get("MQTT_PORT", "1883"))
     mqtt_username = os.environ.get("MQTT_USERNAME") or None
     mqtt_password = os.environ.get("MQTT_PASSWORD") or None
     mqtt_base_topic = os.environ.get("MQTT_BASE_TOPIC", "sunshare")
+    mqtt_publish = _env_bool(os.environ.get("MQTT_PUBLISH"), True)
 
     ui_port = int(os.environ.get("UI_PORT", "8099"))
     lan_port = int(os.environ.get("LAN_PORT", "80"))
@@ -301,8 +312,10 @@ async def main() -> None:
     weather_poll_interval = float(os.environ.get("WEATHER_POLL_INTERVAL", "1800"))
 
     mqtt_pub: MqttPublisher | None = None
-    if mqtt_host:
+    if mqtt_host and mqtt_publish:
         mqtt_pub = MqttPublisher(mqtt_host, mqtt_port, mqtt_username, mqtt_password, mqtt_base_topic, device_id)
+    elif mqtt_host:
+        _LOGGER.info("MQTT_PUBLISH=FALSE: broker used to read the grid meter only, no Home Assistant discovery")
     else:
         _LOGGER.info("No MQTT broker configured (MQTT_HOST unset): running dashboard-only, no Home Assistant discovery")
 

@@ -98,7 +98,11 @@ export function EnergyFlow({ reading, control }: { reading: Reading | null; cont
         <div className="ef-head"><span className="ef-title"><Icon name="grid" />{t("fd.grid")}</span></div>
         <div>
           <span className="ef-value">{fmt(meter == null ? null : Math.abs(meter), "W")}</span>
-          {meter != null && Math.abs(meter) >= ACTIVE_W && <span className="ef-state">{meter > 0 ? t("fd.import") : t("fd.export")}</span>}
+          {/* Show the direction whenever there's a real reading, not just above ACTIVE_W (that
+              threshold is for the animated lines/noise, not for this label) - otherwise a small
+              but genuine export/import (e.g. -2 W) shows as a bare, sign-less number that reads
+              as import, contradicting the signed value shown elsewhere (e.g. the Zähler tile). */}
+          {meter != null && meter !== 0 && <span className="ef-state">{meter > 0 ? t("fd.import") : t("fd.export")}</span>}
         </div>
       </div>
 
