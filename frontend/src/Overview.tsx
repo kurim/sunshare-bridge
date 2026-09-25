@@ -59,7 +59,17 @@ export function Overview() {
   const login = control?.cloud_login;
   const soc = reading?.soc ?? null;
   const bat = reading?.batPow ?? null;
-  const levelColor = socColor(soc, Number(control?.settings.NIGHT_MIN_SOC) || undefined);
+  const fullSoc = Number(control?.settings.CHARGE_FULL_SOC) || 100;
+  const minSoc = Number(control?.settings.NIGHT_MIN_SOC) || 0;
+  const levelColor = socColor(soc, minSoc || undefined);
+  // No charge/discharge flow right now: say why instead of leaving the badge blank when the
+  // battery sits at either end of its usable range (same thresholds the controller itself plans
+  // around - CHARGE_FULL_SOC/NIGHT_MIN_SOC - so this matches what the Regler would actually do).
+  const batteryBadge =
+    bat !== null && bat !== 0 ? <FlowBadge discharging={bat > 0} text={bat > 0 ? t("ov.discharging") : t("ov.charging")} />
+      : soc != null && soc >= fullSoc ? <span className="tag ok">{t("ov.full")}</span>
+      : soc != null && soc <= minSoc ? <span className="tag warn">{t("ov.empty")}</span>
+      : undefined;
   const state = control ? (control.enabled ? (control.dry_run ? t("ov.state.dry") : t("ov.state.on")) : t("ov.state.off")) : "";
   // Both timestamps come from the bridge, so this needs no synced clock (unlike Date.now()).
   const meterAgeS = reading?._meterT != null && reading?._t != null ? Math.max(0, reading._t - reading._meterT) : null;
@@ -89,7 +99,7 @@ export function Overview() {
           <Tile icon={<Icon name="sun" />} color="var(--c-pv)" label={t("ov.pv")} value={fmt(reading?.pvPow, "W")}
             hint={reading?.pvPeakTodayW != null ? t("ov.pvPeak", { peak: fmt(reading.pvPeakTodayW, "W") }) : undefined} />
           <Tile icon={<BatteryIcon soc={soc} />} color={levelColor} label={t("ov.battery")} value={fmt(bat === null ? null : Math.abs(bat), "W")}
-            badge={bat === null || bat === 0 ? undefined : <FlowBadge discharging={bat > 0} text={bat > 0 ? t("ov.discharging") : t("ov.charging")} />} />
+            badge={batteryBadge} />
           <Tile icon={<Icon name="inverter" />} color="var(--c-inv)" label={t("ov.inverter")} value={fmt(reading?.invPow, "W")} />
           {!cloudMode && <Tile icon={<Icon name="house" />} color="var(--c-export)" label={t("ov.toGrid")} value={fmt(reading?.exportPow, "W")} />}
           {!cloudMode && <Tile icon={<Icon name="plug" />} color="var(--c-socket)" label={t("ov.socket")} value={fmt(reading?.offGridPow, "W")} />}

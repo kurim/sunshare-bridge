@@ -63,7 +63,9 @@ _Dashboard, Animation und Telemetrie sind Aufnahmen einer laufenden Bridge; Flus
 - Für `DATA_SOURCE=lan`: ein Router, der Ziel-NAT pro Quell-IP kann (Anleitung für UniFi unten). Ohne Router-Eingriff
   geht `DATA_SOURCE=cloud`.
 - Für den Regler: zusätzlich ein MQTT-Broker und ein Netzzähler, der dort veröffentlicht wird (positiv = Bezug) –
-  das ist der einzige Weg, wie die Bridge an den Netzbezug kommt (das Gerät hat keinen eigenen Zähler).
+  das ist der einzige Weg, wie die Bridge an den Netzbezug kommt (das Gerät hat keinen eigenen Zähler). Mit
+  `MQTT_PUBLISH=FALSE` liest die Bridge den Zähler trotzdem, veröffentlicht aber selbst nichts (keine
+  Home-Assistant-Discovery, kein State-Topic) – für einen Broker, der nur zum Lesen da ist.
 
 ## Schnellstart
 
@@ -267,6 +269,7 @@ Alles über `.env` (Vorlage: [`.env.example`](.env.example)). Wichtigste Variabl
 | `SUNSHARE_USER_GUEST` | `TRUE` (Default): eingeladener Account, `NIGHT_MIN_SOC` setzt nur die Bridge um. `FALSE`: Haupt-Account, `NIGHT_MIN_SOC` wird zusätzlich als Entladestopp (`socMin`, max. 20 %) ins Gerät geschrieben und die Einspeise-Grenze `countryMaxPower` ist änderbar (Schreiben nur bei aktivem Regler ohne Trockenlauf) |
 | `SUNSHARE_DEVICE_ID`, `SUNSHARE_DEVICE_SN` | aus `scripts/sunshare_login.py devices` |
 | `MQTT_HOST`, `MQTT_PORT`, `MQTT_USERNAME`, `MQTT_PASSWORD`, `MQTT_BASE_TOPIC` | MQTT-Broker (Default-Port 1883, Topic `sunshare`); `MQTT_HOST` leer = reines Dashboard, kein Discovery, Regler bleibt untätig |
+| `MQTT_PUBLISH` | `TRUE` (Default). `FALSE`: Broker wird weiter für den Regler (Zähler lesen) genutzt, die Bridge veröffentlicht aber selbst nichts (kein Discovery, kein State-Topic) |
 | `DATA_SOURCE` | `lan` (Default) oder `cloud` |
 | `HISTORY_RETENTION_DAYS` | Aufbewahrung des Verlaufs (Default 30) |
 | `RAW_LOG_SIZE` | Größe des Roh-Log-Puffers (Default 500) |

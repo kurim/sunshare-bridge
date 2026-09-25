@@ -40,6 +40,8 @@ export const en: Messages = {
   "ov.battery": "Battery",
   "ov.charging": "charging",
   "ov.discharging": "discharging",
+  "ov.full": "full",
+  "ov.empty": "empty",
   "ov.inverter": "Inverter",
   "ov.toGrid": "To house grid",
   "ov.socket": "Socket",

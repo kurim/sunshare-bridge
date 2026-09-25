@@ -3,6 +3,22 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [1.0.12] - 2026-09-25
+
+### Bridge
+
+- Neu: `MQTT_PUBLISH` (Default `TRUE`). Auf `FALSE` gesetzt liest die Bridge einen konfigurierten Broker weiterhin
+  für den Regler (externer Netzzähler), veröffentlicht selbst aber nichts mehr (kein Home-Assistant-Discovery,
+  kein State-Topic) – für einen Broker, der nur zum Lesen da sein soll, ohne `MQTT_HOST` komplett zu leeren (das
+  hätte auch den Regler lahmgelegt, siehe 1.0.11).
+- Fix: Die Zähler-Kachel im animierten Energiefluss-Diagramm zeigte bei kleinen Beträgen (< 5 W) den Betrag ohne
+  Vorzeichen und ohne „Bezug“/„Einspeisung“-Hinweis – z. B. -2 W erschien als bloße „2 W“, was wie Netzbezug
+  aussah, während die Zähler-Kachel daneben korrekt -2 W anzeigte. Die Richtung wird jetzt bei jedem
+  Zähler-Wert ≠ 0 angezeigt, nicht erst ab der (nur für die Leitungs-Animation gedachten) 5-W-Schwelle.
+- Neu: Die Batterie-Kachel in der Übersicht zeigt jetzt „voll“ bzw. „leer“, wenn gerade kein Lade-/Entladefluss
+  läuft, der SOC aber am oberen (`CHARGE_FULL_SOC`) bzw. unteren (`NIGHT_MIN_SOC`) Ende steht – vorher blieb die
+  Kachel in dem Fall ohne jeden Hinweis.
+
 ## [1.0.11] - 2026-09-25
 
 ### Bridge
