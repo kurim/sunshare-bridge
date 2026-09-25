@@ -3,6 +3,14 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [1.0.13] - 2026-09-25
+
+### Bridge
+
+- Neu: Die Batterie-Kachel in der Übersicht zeigt beim Laden jetzt „voll in ~X h“ (Schätzung des Reglers,
+  siehe `cc.est.full` im Regler-Tab) statt gar keinen Hinweis zu zeigen – der Wert basiert auf `CHARGE_RESERVE_W`
+  und steht unabhängig davon zur Verfügung, ob der Regler aktiv ist.
+
 ## [1.0.12] - 2026-09-25
 
 ### Bridge

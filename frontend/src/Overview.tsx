@@ -70,6 +70,11 @@ export function Overview() {
       : soc != null && soc >= fullSoc ? <span className="tag ok">{t("ov.full")}</span>
       : soc != null && soc <= minSoc ? <span className="tag warn">{t("ov.empty")}</span>
       : undefined;
+  // est_full_h is the controller's own planning estimate (based on CHARGE_RESERVE_W, see
+  // grid_control.py's status()), always available once soc < CHARGE_FULL_SOC - only show it
+  // while actually charging, so it doesn't imply a trajectory that isn't happening right now.
+  const batteryHint =
+    bat !== null && bat < 0 && control?.est_full_h != null ? t("ov.battery.full", { h: fmt(control.est_full_h, "h", 1) }) : undefined;
   const state = control ? (control.enabled ? (control.dry_run ? t("ov.state.dry") : t("ov.state.on")) : t("ov.state.off")) : "";
   // Both timestamps come from the bridge, so this needs no synced clock (unlike Date.now()).
   const meterAgeS = reading?._meterT != null && reading?._t != null ? Math.max(0, reading._t - reading._meterT) : null;
@@ -99,7 +104,7 @@ export function Overview() {
           <Tile icon={<Icon name="sun" />} color="var(--c-pv)" label={t("ov.pv")} value={fmt(reading?.pvPow, "W")}
             hint={reading?.pvPeakTodayW != null ? t("ov.pvPeak", { peak: fmt(reading.pvPeakTodayW, "W") }) : undefined} />
           <Tile icon={<BatteryIcon soc={soc} />} color={levelColor} label={t("ov.battery")} value={fmt(bat === null ? null : Math.abs(bat), "W")}
-            badge={batteryBadge} />
+            badge={batteryBadge} hint={batteryHint} />
           <Tile icon={<Icon name="inverter" />} color="var(--c-inv)" label={t("ov.inverter")} value={fmt(reading?.invPow, "W")} />
           {!cloudMode && <Tile icon={<Icon name="house" />} color="var(--c-export)" label={t("ov.toGrid")} value={fmt(reading?.exportPow, "W")} />}
           {!cloudMode && <Tile icon={<Icon name="plug" />} color="var(--c-socket)" label={t("ov.socket")} value={fmt(reading?.offGridPow, "W")} />}
