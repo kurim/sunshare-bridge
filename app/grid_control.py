@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import re
+import socket
 import time
 from pathlib import Path
 from typing import Any
@@ -520,7 +521,11 @@ class GridController:
         self._loop = asyncio.get_running_loop()
         host, port, user, password = self._mqtt_conn
         if host:
-            self._mqtt = mqtt.Client(client_id="sunshare-bridge-gridctl")
+            # Suffixed with the container hostname (Docker assigns one per container, unique between
+            # e.g. a docker-compose deployment and the HA add-on pointed at the same broker) - a
+            # fixed client ID collides and the broker repeatedly kicks whichever connected first
+            # ("session taken over"), which then reconnects and kicks the other, forever.
+            self._mqtt = mqtt.Client(client_id=f"sunshare-bridge-gridctl-{socket.gethostname()}")
             if user:
                 self._mqtt.username_pw_set(user, password)
             self._mqtt.on_connect = self._on_connect

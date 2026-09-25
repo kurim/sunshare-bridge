@@ -10,6 +10,10 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Forma
 - Neu: Die Batterie-Kachel in der Übersicht zeigt beim Laden jetzt „voll in ~X h“ (Schätzung des Reglers,
   siehe `cc.est.full` im Regler-Tab) statt gar keinen Hinweis zu zeigen – der Wert basiert auf `CHARGE_RESERVE_W`
   und steht unabhängig davon zur Verfügung, ob der Regler aktiv ist.
+- Fix: Läuft die Bridge gleichzeitig als HA-Add-on und separat per `docker compose` gegen denselben MQTT-Broker,
+  hatten beide Instanzen dieselbe feste MQTT-Client-ID (`sunshare-bridge-gridctl` bzw. `sunshare-bridge-<device_id>`)
+  – der Broker hat sie deshalb im Sekundentakt gegenseitig rausgeworfen („session taken over“). Die Client-ID trägt
+  jetzt den Container-Hostnamen als Suffix, der sich zwischen zwei Containern automatisch unterscheidet.
 
 ## [1.0.12] - 2026-09-25
 

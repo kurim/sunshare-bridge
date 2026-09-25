@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import logging
+import socket
 from typing import Any
 
 import paho.mqtt.client as mqtt
@@ -55,7 +56,10 @@ class MqttPublisher:
         self.base_topic = base_topic
         self.device_id = device_id
         self._discovery_sent = False
-        self._client = mqtt.Client(client_id=f"sunshare-bridge-{device_id}")
+        # Hostname suffix: same device_id can be bridged by two containers at once (e.g. the HA
+        # add-on and a separate docker-compose install both publishing) - without it they'd fight
+        # over the client ID and the broker would keep disconnecting one for the other.
+        self._client = mqtt.Client(client_id=f"sunshare-bridge-{device_id}-{socket.gethostname()}")
         if username:
             self._client.username_pw_set(username, password)
         self._client.connect_async(host, port)
