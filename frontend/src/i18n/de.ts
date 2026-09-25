@@ -42,6 +42,7 @@ export const de = {
   "ov.discharging": "entlädt",
   "ov.full": "voll",
   "ov.empty": "leer",
+  "ov.battery.full": "voll in ~{h}",
   "ov.inverter": "Wechselrichter",
   "ov.toGrid": "Ins Hausnetz",
   "ov.socket": "Steckdose",
