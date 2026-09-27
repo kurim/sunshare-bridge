@@ -15,6 +15,16 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Forma
   Ein plötzlich sinkender Plan-Deckel (Akku wird voll, PV bricht ein) zieht die Ausgangsleistung wie schon
   beabsichtigt weiterhin sofort runter, ohne auf den Mindestabstand zu warten.
 
+## [1.0.15] - 2026-09-27
+
+### Bridge
+
+- Neu: `CHARGE_TRICKLE_W` (Default 5 W, im UI einstellbar). Ist der Akku laut Plan „voll“
+  (`CHARGE_FULL_SOC`), reichte der Regler bisher die komplette PV-Leistung durch, auch die letzten paar Watt
+  bei sinkender Sonne – der Akku bekam dann nichts mehr ab und konnte über den eigenen Standby-Verbrauch des
+  Geräts langsam leerlaufen. Jetzt bleiben auch in dieser Phase `CHARGE_TRICKLE_W` für die Batterie zurück;
+  bei PV unter diesem Wert geht alles in den Akku statt in den Ausgang.
+
 ## [1.0.13] - 2026-09-25
 
 ### Bridge
