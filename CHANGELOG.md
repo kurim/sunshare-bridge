@@ -3,6 +3,18 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [1.0.14] - 2026-09-27
+
+### Bridge
+
+- Fix: Der Regler prüfte den Mindestabstand zwischen zwei Geräte-Schreibzugriffen (`CONTROL_MIN_INTERVAL`),
+  bevor er überhaupt festgestellt hatte, ob eine Korrektur nötig ist. Dadurch zeigte die Statuszeile fast
+  durchgehend „übersprungen: Mindestabstand“ (gelb), selbst wenn der Regler längst eingeschwungen war und
+  ohnehin nichts geschrieben hätte – „ok“-Zustände (Totzone erreicht, PV-/Akku-limitiert) waren dadurch kaum
+  je zu sehen. Der Mindestabstand greift jetzt erst, nachdem feststeht, dass tatsächlich eine Korrektur ansteht.
+  Ein plötzlich sinkender Plan-Deckel (Akku wird voll, PV bricht ein) zieht die Ausgangsleistung wie schon
+  beabsichtigt weiterhin sofort runter, ohne auf den Mindestabstand zu warten.
+
 ## [1.0.13] - 2026-09-25
 
 ### Bridge

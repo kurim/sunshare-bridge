@@ -425,6 +425,36 @@ def test_failsafe_ignores_the_plan_cap_when_the_plan_is_disabled(monkeypatch):
     assert c.setpoint == 500
 
 
+# ---- closed loop step: the write-rate limit must not hide an already-converged state ----
+
+def test_step_reports_deadband_even_right_after_a_write_instead_of_the_rate_limit(monkeypatch):
+    """Regression: the write-rate limit used to be checked before the deadband, so an already-
+    converged controller reported "skipped: minimum interval" (a warning) almost permanently -
+    nothing was ever going to be written anyway, rate limit or not."""
+    client = FakeClient(guest=True)
+    c = _ctl(client)
+    asyncio.run(c.configure(enabled=True, dry_run=False, plan=False))
+    c.meter_w = c.target_w  # error == 0: squarely inside the deadband
+    c._last_write_t = time.time()  # a write "just happened" - well inside min_interval_s
+    monkeypatch.setattr(st.STATE, "latest", {"invPow": 100, "_power_t": time.time()})
+    asyncio.run(c._step())
+    assert c.last_action.key == "act.ok_deadband"
+
+
+def test_step_pulls_an_over_cap_setpoint_down_at_once_despite_the_rate_limit(monkeypatch):
+    """The plan cap can drop sharply (PV falls, battery just reached full) - per the code's own
+    intent ("pull down at once"), that correction must not wait out the write-rate limit."""
+    client = FakeClient(guest=True)
+    c = _ctl(client)
+    asyncio.run(c.configure(enabled=True, dry_run=False))  # plan stays on; setpoint fetched as 100
+    c.meter_w = c.target_w  # error == 0: only the cap, not the meter error, should drive this
+    c._last_write_t = time.time()  # inside min_interval_s
+    # soc >= CHARGE_FULL_SOC (95 by default) -> phase.day_full, cap = pv (20), well below setpoint (100)
+    monkeypatch.setattr(st.STATE, "latest", {"soc": 96, "pvPow": 20, "invPow": 90, "_power_t": time.time()})
+    asyncio.run(c._step())
+    assert c.setpoint == 20 and c.last_action.key == "act.set"
+
+
 def test_country_max_power_is_main_account_only():
     guest = _ctl(FakeClient(guest=True))
     with pytest.raises(MsgError) as guest_err:
