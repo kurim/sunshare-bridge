@@ -141,7 +141,27 @@ def test_cover_load_does_not_change_the_night_or_battery_full_phases():
     assert c._plan_cap(latest, now)[0].key == "phase.night_out"  # unaffected by cover_load
     latest, now = _day(soc=c.full_soc, pv=300)
     phase, cap = c._plan_cap(latest, now)
-    assert (phase.key, cap) == ("phase.day_full", 300)
+    assert (phase.key, cap) == ("phase.day_full", 300 - c.trickle_w)
+
+
+def test_day_full_withholds_the_trickle_charge_from_output():
+    """Once "full" (>= CHARGE_FULL_SOC), output used to track PV exactly - so as PV faded toward
+    dusk, 100 % of even a tiny remaining trickle went to the AC output instead of the battery,
+    which could then slowly drain from the device's own standby draw. CHARGE_TRICKLE_W (default
+    5 W) is now always withheld here too, on top of the plain PV pass-through."""
+    c = _controller()
+    assert c.trickle_w == 5  # documented default
+    latest, now = _day(soc=c.full_soc, pv=95)
+    phase, cap = c._plan_cap(latest, now)
+    assert (phase.key, phase.params, cap) == ("phase.day_full", {"trickle": 5, "soc": c.full_soc}, 90)
+
+
+def test_day_full_trickle_never_pushes_the_cap_negative():
+    """Below the trickle amount, all of the (already tiny) PV should go to the battery - the cap
+    must clamp at 0, not go negative."""
+    c = _controller()
+    latest, now = _day(soc=c.full_soc, pv=2)
+    assert c._plan_cap(latest, now)[1] == 0
 
 
 def test_adaptive_gain_off_by_default():
@@ -449,10 +469,11 @@ def test_step_pulls_an_over_cap_setpoint_down_at_once_despite_the_rate_limit(mon
     asyncio.run(c.configure(enabled=True, dry_run=False))  # plan stays on; setpoint fetched as 100
     c.meter_w = c.target_w  # error == 0: only the cap, not the meter error, should drive this
     c._last_write_t = time.time()  # inside min_interval_s
-    # soc >= CHARGE_FULL_SOC (95 by default) -> phase.day_full, cap = pv (20), well below setpoint (100)
+    # soc >= CHARGE_FULL_SOC (95 by default) -> phase.day_full, cap = pv - trickle (20 - 5 = 15), well
+    # below setpoint (100)
     monkeypatch.setattr(st.STATE, "latest", {"soc": 96, "pvPow": 20, "invPow": 90, "_power_t": time.time()})
     asyncio.run(c._step())
-    assert c.setpoint == 20 and c.last_action.key == "act.set"
+    assert c.setpoint == 15 and c.last_action.key == "act.set"
 
 
 def test_country_max_power_is_main_account_only():

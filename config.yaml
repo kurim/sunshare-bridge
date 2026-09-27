@@ -1,5 +1,5 @@
 name: Sunshare Bridge
-version: "1.0.14"
+version: "1.0.15"
 slug: sunshare_bridge
 description: >-
   Live-Daten, Verlauf und Nulleinspeisung für Sunshare-Mikro-Wechselrichter mit Batterie:
@@ -56,6 +56,7 @@ options:
   CONTROL_FALLBACK_W: 0
   BATTERY_CAPACITY_WH: 1526
   CHARGE_RESERVE_W: 200
+  CHARGE_TRICKLE_W: 5
   CHARGE_FULL_SOC: 95
   CHARGE_RELEASE_SOC: 90
   NIGHT_START: "23:00"
@@ -100,6 +101,7 @@ schema:
   CONTROL_FALLBACK_W: int
   BATTERY_CAPACITY_WH: int
   CHARGE_RESERVE_W: int
+  CHARGE_TRICKLE_W: int
   CHARGE_FULL_SOC: int
   CHARGE_RELEASE_SOC: int
   NIGHT_START: str

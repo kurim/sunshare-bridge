@@ -104,6 +104,7 @@ def _in_window(minute: int, start: int, end: int) -> bool:
 PLAN_SETTINGS: dict[str, tuple[str, str, float, float]] = {
     "BATTERY_CAPACITY_WH": ("battery_wh", "float", 100, 100000),
     "CHARGE_RESERVE_W": ("charge_reserve_w", "int", 0, 2000),
+    "CHARGE_TRICKLE_W": ("trickle_w", "int", 0, 200),
     "CHARGE_FULL_SOC": ("full_soc", "float", 50, 100),
     "CHARGE_RELEASE_SOC": ("release_soc", "float", 50, 100),
     "NIGHT_START": ("night_start", "time", 0, 1439),
@@ -169,6 +170,9 @@ class GridController:
         # the PV above that; night: discharge up to `night_max_w` down to `night_min_soc`).
         self.battery_wh = float(env("BATTERY_CAPACITY_WH", "1526"))
         self.charge_reserve_w = int(env("CHARGE_RESERVE_W", "200"))
+        # Held back from output even once "full" (below), so the battery keeps getting a trickle
+        # instead of the device's own standby draw slowly running it down before nightfall.
+        self.trickle_w = int(env("CHARGE_TRICKLE_W", "5"))
         self.full_soc = float(env("CHARGE_FULL_SOC", "95"))
         self.release_soc = float(env("CHARGE_RELEASE_SOC", "90"))  # hysteresis: "full" ends below this
         self.night_start = _parse_hm(env("NIGHT_START", "23:00"))
@@ -585,8 +589,10 @@ class GridController:
         elif soc < self.release_soc:
             self._battery_full = False
         if self._battery_full:
-            # Battery stays untouched for the night: output never exceeds what PV delivers.
-            return Msg("phase.day_full", soc=_n(soc)), max(round(pv), 0)
+            # Battery is otherwise untouched here: output tracks PV, minus a small trickle always
+            # held back (even at very low PV) so the device's own standby draw doesn't slowly drain
+            # it before nightfall, between reaching CHARGE_FULL_SOC and the device's own cutoff.
+            return Msg("phase.day_full", trickle=self.trickle_w, soc=_n(soc)), max(round(pv - self.trickle_w), 0)
         if self.cover_load:
             # Cover the household's grid draw first; only PV the export guard has actually had to
             # claim back (charge_reserve_w's raise above the user's own baseline - see

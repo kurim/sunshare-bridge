@@ -219,8 +219,10 @@ dass der Zähler ~0 W zeigt. Er ist **aus und im Trockenlauf**, bis du ihn im UI
    `METER_STATE_TOPIC` (+ `METER_VALUE_PATH`), siehe `.env.example`.
 2. Im UI zuerst **Trockenlauf** aktivieren und im Regelstatus prüfen, was der Regler tun würde.
 3. **Batterie-Plan** (optional): tagsüber lädt die Batterie mit einer Reserve (`CHARGE_RESERVE_W`) bis
-   `CHARGE_FULL_SOC`, danach wird nur PV durchgereicht; nachts wird bis `NIGHT_MAX_W` abgegeben, solange der SOC über
-   `NIGHT_MIN_SOC` liegt. Alle Parameter sind im UI einstellbar; die `.env`-Werte sind nur die Defaults.
+   `CHARGE_FULL_SOC`, danach wird PV durchgereicht – bis auf `CHARGE_TRICKLE_W` (Default 5 W), die auch bei vollem
+   Akku für ihn zurückbleiben, damit der Standby-Verbrauch des Geräts ihn nicht bis zum nächsten Morgen leerzieht;
+   nachts wird bis `NIGHT_MAX_W` abgegeben, solange der SOC über `NIGHT_MIN_SOC` liegt. Alle Parameter sind im UI
+   einstellbar; die `.env`-Werte sind nur die Defaults.
 4. **Netzlast abdecken** (Schalter im UI, Alternative zur festen Ladereserve): statt tagsüber immer
    `CHARGE_RESERVE_W` von der PV für die Batterie zurückzuhalten, deckt der Regler zuerst den Netzbezug des Hauses
    – die Ausgabe ist nicht auf PV minus Reserve gedeckelt, solange kein Export gemeldet wird. Erst wenn der

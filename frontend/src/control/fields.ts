@@ -14,6 +14,7 @@ export interface Field {
 export const FIELDS: Field[] = [
   { key: "BATTERY_CAPACITY_WH", unit: "Wh", kind: "number", min: 100, max: 100000, step: 1 },
   { key: "CHARGE_RESERVE_W", unit: "W", kind: "number", min: 0, max: 2000, step: 10 },
+  { key: "CHARGE_TRICKLE_W", unit: "W", kind: "number", min: 0, max: 200, step: 1 },
   { key: "CHARGE_FULL_SOC", unit: "%", kind: "range", min: 50, max: 100, step: 1 },
   { key: "CHARGE_RELEASE_SOC", unit: "%", kind: "range", min: 50, max: 100, step: 1 },
   { key: "NIGHT_START", kind: "time" },
