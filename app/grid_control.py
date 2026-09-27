@@ -663,9 +663,6 @@ class GridController:
             return
         now = time.time()
         self._guard_against_export(self.meter_w, now)
-        if now - self._last_write_t < self.min_interval_s:
-            self.last_action = Msg("act.skip_interval", "warn")
-            return
 
         if self.setpoint is None:
             settings = await self._client.read_ems_settings()
@@ -694,7 +691,9 @@ class GridController:
             self.phase = Msg("phase.schedule_off")
 
         error = self.meter_w - self.target_w
-        # The plan's cap can drop quickly (PV falls, night starts): pull down at once.
+        # The plan's cap can drop quickly (PV falls, night starts): pull down at once, bypassing
+        # the write-rate limit below - waiting out the interval here would keep over-charging or
+        # exporting until it happens to elapse.
         over_cap = self.setpoint > cap and (cap == 0 or self.setpoint > cap + self.deadband_w)
         if not over_cap:
             if abs(error) <= self.deadband_w:
@@ -704,6 +703,13 @@ class GridController:
             # (PV/battery-limited): raising the setpoint would only wind up.
             if error > 0 and inv < self.setpoint - self.deadband_w:
                 self.last_action = Msg("act.ok_limit", "ok", meter=round(self.meter_w), inv=round(inv))
+                return
+            # Only now, once a correction is actually due, does the write-rate limit apply - checking
+            # it any earlier (e.g. before the deadband/limit checks above) would report "skipped:
+            # minimum interval" even while already converged, which is misleading: nothing was ever
+            # going to be written regardless of the interval.
+            if now - self._last_write_t < self.min_interval_s:
+                self.last_action = Msg("act.skip_interval", "warn")
                 return
 
         if self.adaptive_gain:
