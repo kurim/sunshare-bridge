@@ -56,12 +56,28 @@ def test_export_raises_the_charge_reserve_and_persists_it(isolated_data):
     assert _controller()._reserve_base_w == before  # the baseline itself is untouched by an auto-raise
 
 
-def test_export_guard_is_capped_and_a_no_op_without_export():
+def test_settings_report_the_baseline_not_a_live_export_guard_raise(isolated_data):
+    """Regression: settings() used to report the live (possibly export-guard-raised) charge reserve -
+    so the settings form pre-filled with e.g. 424 instead of the user's own configured 210, and since
+    it submits every field together, saving any unrelated change would silently resubmit that transient
+    raise as the new permanent baseline (see grid_control.py's settings() docstring)."""
+    c = _controller()
+    asyncio.run(c.configure(settings={"CHARGE_RESERVE_W": 210}))
+    c._guard_against_export(-400.0, 1000.0)  # export seen -> live reserve raised well above 210
+    assert c.charge_reserve_w == 610 and c._reserve_base_w == 210
+    assert c.settings()["CHARGE_RESERVE_W"] == 210  # the form must show the baseline, not 610
+
+
+def test_export_guard_is_capped_and_a_no_op_without_export(tmp_path, monkeypatch):
     c = _controller()
     c.charge_reserve_w = 1980
     c._guard_against_export(-500.0, 1000.0)
     assert c.charge_reserve_w == 2000  # PLAN_SETTINGS' own CHARGE_RESERVE_W ceiling
 
+    # A control.json of its own - `c`'s raise above just persisted to the shared isolated_data
+    # path, and this instance must start genuinely fresh, not inherit it.
+    import app.grid_control as gc
+    monkeypatch.setattr(gc, "CONTROL_FILE", tmp_path / "other-control.json")
     unchanged = _controller()
     unchanged._guard_against_export(0.0, 1000.0)
     unchanged._guard_against_export(5.0, 1000.0)

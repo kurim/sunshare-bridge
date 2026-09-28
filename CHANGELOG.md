@@ -3,6 +3,19 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [1.0.16] - 2026-09-28
+
+### Bridge
+
+- Fix: Die Regler-Einstellung „Ladereserve“ (`CHARGE_RESERVE_W`) zeigte im UI und in der gespeicherten
+  Konfiguration den *aktuellen* Wert – inklusive einer temporären Anhebung durch den Einspeise-Schutz
+  (`_guard_against_export`) nach einer beobachteten Einspeisung. Dadurch stand im Formular z. B. 614 W statt
+  der selbst eingestellten 210 W, und weil das Formular beim Speichern immer alle Felder mitsendet, wurde
+  diese vorübergehende Anhebung bei jeder Speicherung eines *beliebigen* anderen Feldes unbemerkt als neue
+  dauerhafte Basis übernommen – der eigentliche Wert von 210 W ging dabei verloren. Das Formular zeigt und
+  speichert jetzt immer die eigene Basis; die aktuelle Anhebung bleibt weiterhin im Regler-Status („Exportschutz
+  X W“) sichtbar und übersteht wie gehabt einen Neustart.
+
 ## [1.0.15] - 2026-09-27
 
 ### Bridge

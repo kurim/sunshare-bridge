@@ -170,6 +170,9 @@ class GridController:
         # the PV above that; night: discharge up to `night_max_w` down to `night_min_soc`).
         self.battery_wh = float(env("BATTERY_CAPACITY_WH", "1526"))
         self.charge_reserve_w = int(env("CHARGE_RESERVE_W", "200"))
+        # Placeholder until the authoritative value is loaded below (saved.get("reserve_base_w", ...))
+        # - settings() (called right below, for default_settings) needs it to already exist.
+        self._reserve_base_w = float(self.charge_reserve_w)
         # Held back from output even once "full" (below), so the battery keeps getting a trickle
         # instead of the device's own standby draw slowly running it down before nightfall.
         self.trickle_w = int(env("CHARGE_TRICKLE_W", "5"))
@@ -195,6 +198,10 @@ class GridController:
             self._apply_settings(saved.get("settings") or {})
         except ValueError as err:
             _LOGGER.warning("Ignoring invalid saved plan settings: %s", err)
+        # settings()["CHARGE_RESERVE_W"] (just applied above) is the baseline, not a live export-guard
+        # raise (see settings()'s docstring) - restore that live value separately, so an active raise
+        # still survives a restart instead of snapping back to the baseline.
+        self.charge_reserve_w = int(saved.get("charge_reserve_w", self.charge_reserve_w))
         self.plan_enabled = bool(saved.get("plan", True))
         # Battery-plan day phase, alternative to the fixed CHARGE_RESERVE_W: cover the household's
         # grid draw first and only divert PV the export guard actually had to claim back, so real
@@ -259,6 +266,7 @@ class GridController:
                         "restore_w": self.restore_w,
                         "settings": self.settings(),
                         "reserve_base_w": self._reserve_base_w,
+                        "charge_reserve_w": self.charge_reserve_w,
                     }
                 )
             )
@@ -266,10 +274,15 @@ class GridController:
             _LOGGER.warning("Could not persist control state to %s (non-fatal)", CONTROL_FILE)
 
     def settings(self) -> dict[str, Any]:
-        """Current battery-plan settings under their env-var names (times as "HH:MM")."""
+        """Current battery-plan settings under their env-var names (times as "HH:MM"). CHARGE_RESERVE_W
+        reports the user's own configured baseline (`_reserve_base_w`), not the live value while the
+        export guard has temporarily raised it (see _guard_against_export) - otherwise the settings
+        form would show that transient raise as if it were the user's setting, and saving any other
+        field alongside it (the form submits the whole thing) would silently lock it in as the new
+        baseline, permanently, instead of letting it decay back down."""
         out: dict[str, Any] = {}
         for key, (attr, kind, _lo, _hi) in PLAN_SETTINGS.items():
-            value = getattr(self, attr)
+            value = self._reserve_base_w if key == "CHARGE_RESERVE_W" else getattr(self, attr)
             out[key] = _fmt_hm(value) if kind == "time" else value
         return out
 
