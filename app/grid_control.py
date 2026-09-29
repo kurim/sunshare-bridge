@@ -28,12 +28,14 @@ from typing import Any
 import paho.mqtt.client as mqtt
 
 from .messages import Msg, MsgError
+from .settings_db import SettingsDB
 from .state import STATE
 from .sunshare_cloud import DEVICE_SOC_MIN_MAX, SunshareCloudClient
 
 _LOGGER = logging.getLogger("sunshare.control")
 
-CONTROL_FILE = Path("/data/control.json")
+CONTROL_FILE = Path("/data/control.json")  # the earlier storage: only read once, to import it into settings.db
+SETTING_PREFIX = "setting."  # settings.db key prefix of the plan settings (the rest is controller state)
 INV_MAX_AGE_S = 120  # inverter reading older than this is not trusted as the control base
 EXPORT_GUARD_DECAY_INTERVAL_S = 600  # how rarely the export guard's charge-reserve raise may step back down
 EXPORT_GUARD_DECAY_STEP_W = 10  # ... and by how little each time, so it settles rather than hunts
@@ -106,7 +108,7 @@ def _in_window(minute: int, start: int, end: int) -> bool:
 
 # Settings editable in the web UI: key -> (attribute, kind, min, max).
 # The env vars (same names, upper case) only provide the defaults; UI changes are
-# persisted in control.json and win over the env on the next start.
+# persisted in settings.db and win over the env on the next start.
 PLAN_SETTINGS: dict[str, tuple[str, str, float, float]] = {
     "BATTERY_CAPACITY_WH": ("battery_wh", "float", 100, 100000),
     "CHARGE_RESERVE_W": ("charge_reserve_w", "int", 0, 2000),
@@ -199,11 +201,9 @@ class GridController:
         self.device_note: Msg | None = None
         self._device_soc_ok = False  # device `socMin` currently equals what NIGHT_MIN_SOC asks for
 
+        self._db = SettingsDB()
         saved = self._load()
-        try:
-            self._apply_settings(saved.get("settings") or {})
-        except ValueError as err:
-            _LOGGER.warning("Ignoring invalid saved plan settings: %s", err)
+        self._apply_stored_settings(saved.get("settings") or {})
         # settings()["CHARGE_RESERVE_W"] (just applied above) is the baseline, not a live export-guard
         # raise (see settings()'s docstring) - restore that live value separately, so an active raise
         # still survives a restart instead of snapping back to the baseline.
@@ -270,32 +270,69 @@ class GridController:
 
     # ---- persistence / UI ------------------------------------------------
     def _load(self) -> dict[str, Any]:
+        """What the user saved (settings.db), as {"enabled": ..., "settings": {KEY: value, ...}, ...}:
+        the plan settings live under a "setting." key prefix there, only those differing from the defaults."""
+        stored = self._db.load()
+        if not stored and self._db.enabled:
+            stored = self._import_control_json()
+        out = {k: v for k, v in stored.items() if not k.startswith(SETTING_PREFIX)}
+        out["settings"] = {k[len(SETTING_PREFIX):]: v for k, v in stored.items() if k.startswith(SETTING_PREFIX)}
+        return out
+
+    def _import_control_json(self) -> dict[str, Any]:
+        """First start with settings.db: take over what the earlier control.json held, then set that
+        file aside (renamed, not deleted) so it is not imported twice."""
         try:
-            return json.loads(CONTROL_FILE.read_text())
-        except Exception:
+            old = json.loads(CONTROL_FILE.read_text())
+        except (OSError, ValueError):
             return {}
+        settings = dict(old.get("settings") or {})
+        if old.get("reserve_base_w") is not None:  # the user's own value, not a live export-guard raise
+            settings["CHARGE_RESERVE_W"] = old["reserve_base_w"]
+        flat = {k: v for k, v in old.items() if k != "settings"}
+        flat.update({SETTING_PREFIX + k: v for k, v in settings.items() if v != self.default_settings.get(k)})
+        self._db.save(flat)
+        try:
+            CONTROL_FILE.rename(CONTROL_FILE.with_name(CONTROL_FILE.name + ".migrated"))
+        except OSError:
+            _LOGGER.warning("Imported %s but could not rename it", CONTROL_FILE)
+        _LOGGER.info("Imported the earlier %s into %s", CONTROL_FILE, self._db.path)
+        return flat
+
+    def _apply_stored_settings(self, values: dict[str, Any]) -> None:
+        """Applies the saved plan settings; one that no longer validates (a range narrowed by an update, say)
+        is skipped with a warning instead of costing the user all the others."""
+        try:
+            self._apply_settings(values)
+            return
+        except ValueError:
+            pass
+        for key in sorted(values, key=lambda k: k != "CHARGE_FULL_SOC"):  # full before release: they are checked together
+            try:
+                self._apply_settings({key: values[key]})
+            except ValueError as err:
+                _LOGGER.warning("Ignoring stored setting %s=%r: %s", key, values[key], err)
 
     def _save(self) -> None:
-        try:
-            CONTROL_FILE.parent.mkdir(parents=True, exist_ok=True)
-            CONTROL_FILE.write_text(
-                json.dumps(
-                    {
-                        "enabled": self.enabled,
-                        "dry_run": self.dry_run,
-                        "plan": self.plan_enabled,
-                        "cover_load": self.cover_load,
-                        "adaptive_gain": self.adaptive_gain,
-                        "gain": self.learned_gain,
-                        "restore_w": self.restore_w,
-                        "settings": self.settings(),
-                        "reserve_base_w": self._reserve_base_w,
-                        "charge_reserve_w": self.charge_reserve_w,
-                    }
-                )
-            )
-        except OSError:
-            _LOGGER.warning("Could not persist control state to %s (non-fatal)", CONTROL_FILE)
+        """Persists the state; of the plan settings only what differs from the .env/option default."""
+        values: dict[str, Any] = {
+            "enabled": self.enabled,
+            "dry_run": self.dry_run,
+            "plan": self.plan_enabled,
+            "cover_load": self.cover_load,
+            "adaptive_gain": self.adaptive_gain,
+            "gain": self.learned_gain,
+            "restore_w": self.restore_w,
+            "reserve_base_w": self._reserve_base_w,
+            "charge_reserve_w": self.charge_reserve_w,
+        }
+        remove = []
+        for key, value in self.settings().items():
+            if value == self.default_settings[key]:
+                remove.append(SETTING_PREFIX + key)
+            else:
+                values[SETTING_PREFIX + key] = value
+        self._db.save(values, remove)
 
     def settings(self) -> dict[str, Any]:
         """Current battery-plan settings under their env-var names (times as "HH:MM"). CHARGE_RESERVE_W

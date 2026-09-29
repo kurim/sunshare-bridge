@@ -11,9 +11,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 def isolated_data(tmp_path, monkeypatch):
     """Keep every test away from /data and from the developer's real .env values."""
     import app.grid_control as gc
+    import app.settings_db as sdb
     import app.state as st
 
     monkeypatch.setattr(gc, "CONTROL_FILE", tmp_path / "control.json")
+    monkeypatch.setattr(sdb, "SETTINGS_FILE", tmp_path / "settings.db")
     monkeypatch.setattr(st, "ENERGY_FILE", tmp_path / "battery_energy.json")
     monkeypatch.setattr(st, "HISTORY_FILE", tmp_path / "history.db")
     monkeypatch.setattr(st.STATE, "setpoint_w", None)

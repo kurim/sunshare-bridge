@@ -222,7 +222,11 @@ dass der Zähler ~0 W zeigt. Er ist **aus und im Trockenlauf**, bis du ihn im UI
    `CHARGE_FULL_SOC`, danach wird PV durchgereicht – bis auf `CHARGE_TRICKLE_W` (Default 5 W), die auch bei vollem
    Akku für ihn zurückbleiben, damit der Standby-Verbrauch des Geräts ihn nicht bis zum nächsten Morgen leerzieht;
    nachts wird bis `NIGHT_MAX_W` abgegeben, solange der SOC über `NIGHT_MIN_SOC` liegt. Alle Parameter sind im UI
-   einstellbar; die `.env`-Werte sind nur die Defaults.
+   einstellbar; die `.env`-Werte (bzw. Add-on-Optionen) sind nur die Defaults. Was du im UI änderst, liegt in
+   `data/settings.db`, gewinnt beim nächsten Start gegen die `.env` und bleibt bei Neustart und Update erhalten –
+   gespeichert wird nur, was vom Default abweicht, alles Übrige folgt weiter der `.env`. „Standard (.env)“ im UI und
+   Speichern setzt Werte auf den Default zurück. Das frühere `control.json` wird beim ersten Start übernommen und zu
+   `control.json.migrated` umbenannt.
 4. **Netzlast abdecken** (Schalter im UI, Alternative zur festen Ladereserve): statt tagsüber immer
    `CHARGE_RESERVE_W` von der PV für die Batterie zurückzuhalten, deckt der Regler zuerst den Netzbezug des Hauses
    – die Ausgabe ist nicht auf PV minus Reserve gedeckelt, solange kein Export gemeldet wird. Erst wenn der
@@ -298,7 +302,7 @@ Alles über `.env` (Vorlage: [`.env.example`](.env.example)). Wichtigste Variabl
 | `TZ` | Zeitzone (Default `Europe/Berlin`) – bestimmt u. a. den Tageswechsel des PV-Tageszählers |
 | `LOG_LEVEL` | `DEBUG`/`INFO` (Default)/`WARNING`/`ERROR` |
 
-Persistente Daten liegen in `./data` (Energiezähler, Verlauf, Regler-Einstellungen). Ändern sich `UI_PORT`/`LAN_PORT`,
+Persistente Daten liegen in `./data` (Energiezähler, Verlauf, Regler-Einstellungen in `settings.db`). Ändern sich `UI_PORT`/`LAN_PORT`,
 müssen die Port-Zuordnungen in `docker-compose.yml` angepasst werden.
 
 ## UniFi-NAT-Regel für LAN-Modus
