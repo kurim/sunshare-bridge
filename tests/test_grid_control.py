@@ -450,6 +450,84 @@ def test_failsafe_uses_the_fallback_as_is_when_it_is_within_the_night_cap(monkey
     assert c.setpoint == 50
 
 
+class RecordingClient(FakeClient):
+    def __init__(self, guest=True):
+        super().__init__(guest)
+        self.outputs = []
+
+    async def set_output_power(self, watts, ems_strategy_type=1):
+        self.outputs.append(watts)
+        return self.ok
+
+
+def test_failsafe_follows_the_plan_from_the_evening_into_the_night(monkeypatch):
+    """Regression: the failsafe ran once per outage. A meter that dropped out at dusk (day phase, no
+    PV -> cap 0) left the output at 0 W for the whole night, although the night window would have
+    allowed CONTROL_FALLBACK_W (up to NIGHT_MAX_W) - it must be re-evaluated while the meter is away."""
+    client = RecordingClient()
+    c = _ctl(client)
+    asyncio.run(c.configure(enabled=True, dry_run=False, settings={"CONTROL_FALLBACK_W": 210, "NIGHT_MAX_W": 200}))
+    latest, dusk = _day(soc=40, pv=0)
+    monkeypatch.setattr(st.STATE, "latest", latest)
+    with mock.patch("time.time", return_value=dusk):
+        asyncio.run(c._failsafe())
+    assert client.outputs == [0]
+
+    _, night = _night(soc=40)
+    night += 24 * 3600  # 02:00 of the following day
+    with mock.patch("time.time", return_value=night):
+        asyncio.run(c._failsafe())
+    assert client.outputs == [0, 200] and c.setpoint == 200  # min(fallback 210, NIGHT_MAX_W 200)
+
+
+def test_failsafe_only_writes_when_the_target_changes(monkeypatch):
+    client = RecordingClient()
+    c = _ctl(client)
+    asyncio.run(c.configure(enabled=True, dry_run=False, settings={"CONTROL_FALLBACK_W": 100}))
+    latest, now = _night(soc=80)
+    monkeypatch.setattr(st.STATE, "latest", latest)
+    for step in range(3):
+        with mock.patch("time.time", return_value=now + step * 600):
+            asyncio.run(c._failsafe())
+    assert client.outputs == [100]  # later rounds found nothing new to send
+
+
+def test_failsafe_retries_a_failed_write_on_the_next_round(monkeypatch):
+    client = RecordingClient()
+    client.ok = False
+    c = _ctl(client)
+    asyncio.run(c.configure(enabled=True, dry_run=False, settings={"CONTROL_FALLBACK_W": 100}))
+    latest, now = _night(soc=80)
+    monkeypatch.setattr(st.STATE, "latest", latest)
+    with mock.patch("time.time", return_value=now):
+        asyncio.run(c._failsafe())
+    assert c.last_action.key == "act.set_failed"
+    client.ok = True
+    with mock.patch("time.time", return_value=now + 600):
+        asyncio.run(c._failsafe())
+    assert client.outputs == [100, 100] and c.last_action.key == "act.set"
+
+
+def test_failsafe_recheck_respects_the_write_rate_limit(monkeypatch):
+    """A very short CONTROL_METER_MAX_AGE re-runs the failsafe every few seconds - repeat rounds must
+    not write faster than CONTROL_MIN_INTERVAL even when PV keeps moving the day cap."""
+    client = RecordingClient()
+    c = _ctl(client)
+    asyncio.run(c.configure(enabled=True, dry_run=False, settings={"CONTROL_FALLBACK_W": 500}))
+    latest, now = _day(soc=50, pv=420)
+    monkeypatch.setattr(st.STATE, "latest", latest)
+    with mock.patch("time.time", return_value=now):
+        asyncio.run(c._failsafe())
+    first = list(client.outputs)
+    monkeypatch.setattr(st.STATE, "latest", {"soc": 50, "pvPow": 480})
+    with mock.patch("time.time", return_value=now + 10):  # inside min_interval_s (60 s default)
+        asyncio.run(c._failsafe())
+    assert client.outputs == first
+    with mock.patch("time.time", return_value=now + 70):
+        asyncio.run(c._failsafe())
+    assert len(client.outputs) == len(first) + 1
+
+
 def test_failsafe_ignores_the_plan_cap_when_the_plan_is_disabled(monkeypatch):
     client = FakeClient(guest=True)
     c = _ctl(client)
@@ -484,11 +562,13 @@ def test_step_pulls_an_over_cap_setpoint_down_at_once_despite_the_rate_limit(mon
     c = _ctl(client)
     asyncio.run(c.configure(enabled=True, dry_run=False))  # plan stays on; setpoint fetched as 100
     c.meter_w = c.target_w  # error == 0: only the cap, not the meter error, should drive this
-    c._last_write_t = time.time()  # inside min_interval_s
+    _, noon = _day(soc=96, pv=20)  # a fixed daytime: the real clock may sit inside the night window
+    c._last_write_t = noon  # inside min_interval_s
     # soc >= CHARGE_FULL_SOC (95 by default) -> phase.day_full, cap = pv - trickle (20 - 5 = 15), well
     # below setpoint (100)
-    monkeypatch.setattr(st.STATE, "latest", {"soc": 96, "pvPow": 20, "invPow": 90, "_power_t": time.time()})
-    asyncio.run(c._step())
+    monkeypatch.setattr(st.STATE, "latest", {"soc": 96, "pvPow": 20, "invPow": 90, "_power_t": noon})
+    with mock.patch("time.time", return_value=noon):
+        asyncio.run(c._step())
     assert c.setpoint == 15 and c.last_action.key == "act.set"
 
 

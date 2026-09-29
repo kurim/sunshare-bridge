@@ -230,6 +230,7 @@ class GridController:
         self._last_write_t = 0.0
         self._last_export_guard_t = 0.0
         self._failsafe_active = False
+        self._failsafe_w: int | None = None  # last failsafe target that actually went out
         self._mqtt_connected = False
         self._config_seen = False
         self._last_payload: str | None = None  # raw text of the last message on the state topic
@@ -531,6 +532,7 @@ class GridController:
         self.meter_t = t
         STATE.meter_w, STATE.meter_t = value, t
         self._failsafe_active = False
+        self._failsafe_w = None
         self._new_meter.set()
 
     # ---- control loop -----------------------------------------------------
@@ -741,12 +743,13 @@ class GridController:
             return
         await self._apply(new, Msg("why.control", meter=round(self.meter_w), inv=round(inv), cap=cap))
 
-    async def _apply(self, watts: int, why: Msg) -> None:
+    async def _apply(self, watts: int, why: Msg) -> bool:
+        """True if the value went out (or, in dry-run, would have)."""
         if self.dry_run:
             self.last_action = Msg("act.dry_run", "warn", w=watts, why=why)
             _LOGGER.info("%s", self.last_action)
             self._last_write_t = time.time()
-            return
+            return True
         ok = await self._client.set_output_power(watts, self.strategy_type)
         self._last_write_t = time.time()
         if ok:
@@ -755,10 +758,15 @@ class GridController:
         else:
             self.last_action = Msg("act.set_failed", "error", w=watts, why=why)
         _LOGGER.info("%s", self.last_action)
+        return ok
 
     async def _failsafe(self) -> None:
-        """No meter sample for `meter_max_age_s`: drive to a safe output once. `fallback_w` (UI-editable,
-        default 0) is the ceiling for it, but only ever a ceiling - with the battery plan on, it is
+        """No meter sample for `meter_max_age_s`: drive to a safe output. Runs again every
+        `meter_max_age_s` for as long as the meter stays away (see `run`), so the value follows the plan
+        as it changes - the evening's 0 W (no PV, still day) must not stick through the night window, and
+        the night's value must not stick into the morning - but only writes when the target actually
+        differs from the last one that went out (a failed write is retried on the next round).
+        `fallback_w` (UI-editable, default 0) is the ceiling for it, but only ever a ceiling - with the battery plan on, it is
         additionally capped by the exact same phase logic the closed loop uses (`_plan_cap`, from the
         last known SOC/PV - independent of the meter, so still fresh): during the day charging phase or
         once full that means never drawing more from the battery than PV actually covers, at night the
@@ -766,18 +774,26 @@ class GridController:
         needs, not a guarantee that PV/grid cover it - the plan's reserve exists precisely so a blind
         fallback can't eat into it. If the plan is on but even the last known SOC/PV is missing, there is
         nothing to size a safe cap from, so it defaults to 0 rather than trusting the raw fallback."""
-        if not self.enabled or self._failsafe_active:
+        if not self.enabled:
             return
-        self._failsafe_active = True
-        _LOGGER.warning(
-            "No meter sample for %.0fs: mqtt_connected=%s config_seen=%s state_topic=%s value_path=%s",
-            self.meter_max_age_s, self._mqtt_connected, self._config_seen, self.state_topic, self.value_path,
-        )
+        now = time.time()
+        first = not self._failsafe_active
+        if not first and now - self._last_write_t < self.min_interval_s:
+            return  # a short CONTROL_METER_MAX_AGE must not turn the re-check into a write storm
+        if first:
+            self._failsafe_active = True
+            _LOGGER.warning(
+                "No meter sample for %.0fs: mqtt_connected=%s config_seen=%s state_topic=%s value_path=%s",
+                self.meter_max_age_s, self._mqtt_connected, self._config_seen, self.state_topic, self.value_path,
+            )
         watts = self.fallback_w
         if self.plan_enabled:
-            cap = self._plan_cap(STATE.latest or {}, time.time())
+            cap = self._plan_cap(STATE.latest or {}, now)
             if cap is not None:
                 self.phase, watts = cap[0], min(watts, cap[1])
             else:
                 watts = 0
-        await self._apply(watts, Msg("why.failsafe"))
+        if watts == self._failsafe_w:
+            return
+        if await self._apply(watts, Msg("why.failsafe")):
+            self._failsafe_w = watts

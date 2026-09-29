@@ -3,6 +3,17 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [1.0.17] - 2026-09-29
+
+### Bridge
+
+- Fix: Der Failsafe (Zähler meldet nichts mehr) lief nur ein einziges Mal pro Ausfall. Fiel der Zähler abends aus –
+  noch in der Tagphase, ohne PV, Deckel 0 W –, blieb der Ausgang auf 0 W, auch als um 23:00 das Nachtfenster begann,
+  in dem `CONTROL_FALLBACK_W` (bis `NIGHT_MAX_W`) erlaubt gewesen wäre; umgekehrt hätte ein Nachtwert in den Morgen
+  hineingewirkt. Der Failsafe wird jetzt alle `CONTROL_METER_MAX_AGE` neu berechnet, solange der Zähler fehlt, und
+  schreibt nur, wenn sich der Zielwert ändert (ein fehlgeschlagener Schreibzugriff wird beim nächsten Durchlauf
+  wiederholt; Wiederholungen nie schneller als `CONTROL_MIN_INTERVAL`).
+
 ## [1.0.16] - 2026-09-28
 
 ### Bridge
