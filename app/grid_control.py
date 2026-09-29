@@ -870,9 +870,15 @@ class GridController:
             # Only now, once a correction is actually due, does the write-rate limit apply - checking
             # it any earlier (e.g. before the deadband/limit checks above) would report "skipped:
             # minimum interval" even while already converged, which is misleading: nothing was ever
-            # going to be written regardless of the interval.
+            # going to be written regardless of the interval. The same goes for a correction the cap
+            # (or the inverter's own output) leaves at the current setpoint: the interval only held
+            # something back if a different value would have gone out.
             if now - self._last_write_t < self.min_interval_s:
-                self.last_action = Msg("act.skip_interval", "warn")
+                would = round(min(max(inv + self.gain * error, self.min_w), cap))
+                if would == self.setpoint and not recheck:
+                    self.last_action = Msg("act.ok_unchanged", "ok", w=would)
+                else:
+                    self.last_action = Msg("act.skip_interval", "warn")
                 return
 
         if recheck:

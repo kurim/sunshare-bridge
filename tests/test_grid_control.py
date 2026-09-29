@@ -928,3 +928,30 @@ def test_state_keeps_only_recent_pv_samples_and_reports_the_minimum():
     asyncio.run(s.publish({"soc": 50}, None))  # no fresh power reading: not a sample
     assert len(s._pv_samples) == 2 and s.pv_min(60) == 60
     assert s.pv_min(60, now=time.time() + 300) is None  # everything is older than the window
+
+
+# --- "minimum interval" is only reported when a write was really held back ---------------------
+
+def _step_within_the_interval(monkeypatch, *, cap_pv, inv, setpoint):
+    """One step shortly after a write, meter far above the target, day phase with the given PV."""
+    _, noon = _day(soc=50, pv=cap_pv)
+    c = _ctl(FakeClient(guest=True))
+    asyncio.run(c.configure(enabled=True, dry_run=False, plan=True))
+    asyncio.run(c.configure(cover_load=True))  # cap == PV, as in the field report
+    c.setpoint, c.meter_w = setpoint, 225.0
+    c._last_sync_t = noon  # no read-back this round
+    c._last_write_t = noon - 6  # 6 s ago: inside min_interval_s
+    monkeypatch.setattr(st.STATE, "latest", {"soc": 50, "pvPow": cap_pv, "batPow": 0, "invPow": inv, "_power_t": noon})
+    with mock.patch("time.time", return_value=noon):
+        asyncio.run(c._step())
+    return c
+
+
+def test_within_the_interval_a_setpoint_the_cap_already_holds_is_unchanged_not_skipped(monkeypatch):
+    c = _step_within_the_interval(monkeypatch, cap_pv=110, inv=110, setpoint=110)
+    assert c.last_action.key == "act.ok_unchanged" and c.last_action.params == {"w": 110}
+
+
+def test_within_the_interval_a_correction_that_would_go_out_is_still_skipped(monkeypatch):
+    c = _step_within_the_interval(monkeypatch, cap_pv=500, inv=110, setpoint=110)  # room to raise it
+    assert c.last_action.key == "act.skip_interval" and c.setpoint == 110
