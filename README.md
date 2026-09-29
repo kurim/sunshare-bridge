@@ -242,7 +242,10 @@ dass der Zähler ~0 W zeigt. Er ist **aus und im Trockenlauf**, bis du ihn im UI
    `CHARGE_RESERVE_W` von der PV für die Batterie zurückzuhalten, deckt der Regler zuerst den Netzbezug des Hauses
    – die Ausgabe ist nicht auf PV minus Reserve gedeckelt, solange kein Export gemeldet wird. Erst wenn der
    Einspeise-Schutz (Punkt 5) tatsächlich eine Einspeisung sieht, wird genau dieser Überschuss von der Ausgabe
-   abgezogen und geht so in die Batterie. Wirkt nur, solange der Batterie-Plan aktiv ist.
+   abgezogen und geht so in die Batterie. Wirkt nur, solange der Batterie-Plan aktiv ist. Optional (Schalter
+   „Erhaltungsladung bei Netzlast“, aus per Default): `CHARGE_TRICKLE_W` bleibt auch hier von der PV zurück, damit der
+   Eigenverbrauch des Geräts nicht aus dem Akku kommt – sonst steht der Akku bei Ausgang = PV oft ein paar Watt im
+   Plus.
 5. **Einspeise-Schutz:** Meldet der Zähler eine Einspeisung (negativer Wert), hebt der Regler `CHARGE_RESERVE_W`
    sofort um genau diesen Betrag an (Obergrenze 2000 W), damit die nächste Runde mehr PV der Batterie statt der
    Ausgabe zuweist. Bleibt die Einspeisung danach aus, senkt der Regler die Anhebung träge wieder ab (alle 10 Minuten

@@ -229,6 +229,10 @@ class GridController:
         # grid draw first and only divert PV the export guard actually had to claim back, so real
         # surplus - not a fixed reserve - is what ends up in the battery. See _plan_cap.
         self.cover_load = bool(saved.get("cover_load", False))
+        # Opt-in: hold CHARGE_TRICKLE_W back from the output in the cover-load phase as well, so the
+        # PV also covers the device's own standby/conversion draw instead of the battery (which
+        # otherwise sits a few watts on the discharging side while the output equals the PV).
+        self.cover_trickle = bool(saved.get("cover_trickle", False))
         # Online-tuned CONTROL_GAIN (see _adapt_gain), off by default: existing installs keep the
         # fixed gain they already have until they opt in. `learned_gain` survives toggling the
         # switch on and off (and restarts) - only the control loop's *use* of it depends on the
@@ -339,6 +343,7 @@ class GridController:
             "dry_run": self.dry_run,
             "plan": self.plan_enabled,
             "cover_load": self.cover_load,
+            "cover_trickle": self.cover_trickle,
             "adaptive_gain": self.adaptive_gain,
             "gain": self.learned_gain,
             "restore_w": self.restore_w,
@@ -463,6 +468,7 @@ class GridController:
         return {
             "plan": self.plan_enabled,
             "cover_load": self.cover_load,
+            "cover_trickle": self.cover_trickle,
             "adaptive_gain": self.adaptive_gain,
             "gain": round(self.gain, 3),
             "learned_gain": round(self.learned_gain, 3),
@@ -501,6 +507,7 @@ class GridController:
         plan: bool | None = None,
         cover_load: bool | None = None,
         adaptive_gain: bool | None = None,
+        cover_trickle: bool | None = None,
         settings: dict[str, Any] | None = None,
         device: dict[str, Any] | None = None,
     ) -> None:
@@ -522,7 +529,7 @@ class GridController:
             country_max = int(round(raw))
         changed = [f"{name}={value}" for name, value in (
             ("enabled", enabled), ("dry_run", dry_run), ("plan", plan), ("cover_load", cover_load),
-            ("adaptive_gain", adaptive_gain)) if value is not None]
+            ("adaptive_gain", adaptive_gain), ("cover_trickle", cover_trickle)) if value is not None]
         changed += [f"{key}={value}" for key, value in (settings or {}).items()]
         changed += [f"{key}={value}" for key, value in (device or {}).items()]
         if settings:
@@ -548,6 +555,8 @@ class GridController:
             self.plan_enabled = plan
         if cover_load is not None:
             self.cover_load = cover_load
+        if cover_trickle is not None:
+            self.cover_trickle = cover_trickle
         if adaptive_gain is not None:
             self.adaptive_gain = adaptive_gain  # learned_gain is untouched: it survives the toggle
         self._sync_state_setpoint()  # enabled / dry_run may just have changed
@@ -736,9 +745,12 @@ class GridController:
             # _guard_against_export) is withheld from output, so real surplus, not a fixed
             # reserve, is what ends up in the battery.
             guard_w = max(round(self.charge_reserve_w - self._reserve_base_w), 0)
+            # Optionally also hold the trickle back (see cover_trickle): with the output equal to the
+            # PV, the device's own draw would otherwise come out of the battery.
+            held_w = guard_w + (self.trickle_w if self.cover_trickle else 0)
             return (
                 Msg("phase.day_cover_load", guard=guard_w, soc=_n(soc)),
-                max(round(pv - guard_w), 0),
+                max(round(pv - held_w), 0),
             )
         return (
             Msg("phase.day_charging", reserve=self.charge_reserve_w, soc=_n(soc)),
