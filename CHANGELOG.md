@@ -3,6 +3,17 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [1.1.0] - 2026-09-29
+
+### Bridge
+
+- Neu: Tab **Debug** (`/app/debug`) – ein Protokoll dessen, was der Regler gesehen und entschieden hat, damit sich
+  Kurven im Leistungs-Chart nachvollziehen lassen: jeder Zähler-Wert (mit PV/WR/Akku/SOC in dem Moment), jeder
+  Regelschritt mit den Werten dahinter (Zähler, PV, „PV min.“, Deckel, Abweichung, Sollwert) und seiner Entscheidung,
+  jeder Schreibzugriff, Phasenwechsel, Exportschutz-Anhebung, vom Gerät übernommener Ausgang (Änderung in der App),
+  Failsafe und Einstellungsänderungen. Filter nach Art und Text, Pause, JSON-Download. Nur im Speicher (letzte 3000
+  Einträge, nach einem Neustart leer); Regelschritte und Schreibzugriffe entstehen nur bei aktivem Regler.
+
 ## [1.0.19] - 2026-09-29
 
 ### Bridge
@@ -17,12 +28,6 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Forma
   Sekundentakt; ein Einbruch dazwischen wurde bisher vom Akku gedeckt (kurze Entlade-Ausschläge mitten in der
   Ladephase). Nachts ohne Wirkung. Folge: bei stark schwankender PV liegt der Sollwert etwas tiefer, der Akku bekommt
   entsprechend etwas mehr.
-- Neu: Tab **Debug** (`/app/debug`) – ein Protokoll dessen, was der Regler gesehen und entschieden hat, damit sich
-  Kurven im Leistungs-Chart nachvollziehen lassen: jeder Zähler-Wert (mit PV/WR/Akku/SOC in dem Moment), jeder
-  Regelschritt mit den Werten dahinter (Zähler, PV, „PV min.“, Deckel, Abweichung, Sollwert) und seiner Entscheidung,
-  jeder Schreibzugriff, Phasenwechsel, Exportschutz-Anhebung, vom Gerät übernommener Ausgang (Änderung in der App),
-  Failsafe und Einstellungsänderungen. Filter nach Art und Text, Pause, JSON-Download. Nur im Speicher (letzte 3000
-  Einträge, nach einem Neustart leer); Regelschritte und Schreibzugriffe entstehen nur bei aktivem Regler.
 
 ## [1.0.18] - 2026-09-29
 
