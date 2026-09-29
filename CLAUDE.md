@@ -19,6 +19,7 @@ Interpretation dort nachziehen.
 | `grid_control.py` | Nulleinspeisungs-Regler + Batterie-Plan; Parameter (`PLAN_SETTINGS`) zur Laufzeit änderbar, in `data/settings.db` gespeichert |
 | `settings_db.py` | SQLite-Speicher (`data/settings.db`) für alles, was in der UI geändert wurde: nur Abweichungen von den `.env`-/Add-on-Defaults (Vorrang vor diesen), Transaktion pro Speichern; ersetzt das frühere `control.json` (wird einmal importiert und zu `.migrated` umbenannt) |
 | `history_db.py` | Langzeit-Verlauf: ein Ø-Wert/Minute in SQLite (`data/history.db`), Migration fehlender Spalten |
+| `debug_log.py` | Flüchtiger Ringpuffer der Regler-Entscheidungen (Zähler-Werte, Regelschritte samt Eingangswerten, Schreibzugriffe, Phasenwechsel …) für den Tab „Debug“ (`/api/debug`); Einträge = `Msg` + Zahlen (`ctx`), neue Ereignisarten in `KINDS` + `dbg.kind.*` in `de.ts`/`en.ts` |
 | `raw_log.py` | Flüchtiger Ringpuffer der rohen Geräte-Pushes (`/raw`) |
 | `env_view.py` | Read-only-Sicht auf die `.env` (Passwörter maskiert) |
 | `auth.py` | Single-User-Login (`UI_USER`/`UI_PASSWORD`), signiertes Session-Cookie, Rate-Limit, Origin-Prüfung; Middleware schützt UI + API |

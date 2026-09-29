@@ -13,6 +13,11 @@ from typing import Any
 LEVELS = ("info", "ok", "warn", "error")
 
 EN: dict[str, str] = {
+    # debug log (Debug page)
+    "dbg.meter": "Meter sample: {w} W",
+    "dbg.meter_missing": "No meter sample for {s} s – failsafe",
+    "dbg.adopted": "Device output is {actual} W, not the {was} W set here – adopted",
+    "dbg.config": "Settings changed: {what}",
     # controller phase
     "phase.unknown": "SOC/PV unknown",
     "phase.schedule_off": "Schedule off – plain zero feed-in",

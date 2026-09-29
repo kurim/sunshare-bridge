@@ -27,6 +27,7 @@ from typing import Any
 
 import paho.mqtt.client as mqtt
 
+from .debug_log import DEBUG
 from .messages import Msg, MsgError
 from .settings_db import SettingsDB
 from .state import STATE
@@ -99,6 +100,11 @@ def _parse_hm(text: str) -> int:
     """"23:00" -> minutes since midnight."""
     h, m = text.split(":")
     return int(h) * 60 + int(m)
+
+
+def _r(value: Any) -> int | None:
+    """Whole watts/percent for the debug log; None stays None."""
+    return None if value is None else round(value)
 
 
 def _in_window(minute: int, start: int, end: int) -> bool:
@@ -239,6 +245,9 @@ class GridController:
         self._failsafe_active = False
         self._failsafe_w: int | None = None  # last failsafe target that actually went out
         self._last_sync_t = 0.0
+        self._ctx: dict[str, float | int | None] = {}  # what the current step works from (debug log)
+        self._wrote = False  # this step already logged its decision as a write
+        self._dbg_phase: str | None = None
         self._limit_since: float | None = None  # since when the loop has been holding back for a supposed limit
         self._mqtt_connected = False
         self._config_seen = False
@@ -501,6 +510,11 @@ class GridController:
             if not (now_enabled and not now_dry):
                 raise MsgError(Msg("err.country_needs_live", "error"))
             country_max = int(round(raw))
+        changed = [f"{name}={value}" for name, value in (
+            ("enabled", enabled), ("dry_run", dry_run), ("plan", plan), ("cover_load", cover_load),
+            ("adaptive_gain", adaptive_gain)) if value is not None]
+        changed += [f"{key}={value}" for key, value in (settings or {}).items()]
+        changed += [f"{key}={value}" for key, value in (device or {}).items()]
         if settings:
             self._apply_settings(settings)
             self._battery_full = False  # re-evaluate "full" against the new thresholds
@@ -539,6 +553,8 @@ class GridController:
         if country_max is not None:
             await self._set_country_max_power(country_max)
         self._save()
+        if changed:
+            DEBUG.add("config", Msg("dbg.config", "info", what=", ".join(changed)))
         _LOGGER.info("Control config: enabled=%s dry_run=%s (%s)", self.enabled, self.dry_run, self.last_action)
 
     # ---- MQTT (paho thread -> event loop) ---------------------------------
@@ -591,10 +607,30 @@ class GridController:
     def _on_meter(self, value: float, t: float) -> None:
         self.meter_w = value
         self.meter_t = t
+        DEBUG.add("meter", Msg("dbg.meter", "info", w=round(value)), meter=round(value), **self._live())
         STATE.meter_w, STATE.meter_t = value, t
         self._failsafe_active = False
         self._failsafe_w = None
         self._new_meter.set()
+
+    # ---- debug trail ------------------------------------------------------
+    @staticmethod
+    def _live() -> dict[str, float | None]:
+        """The device values a decision at this moment would be based on (for the debug log)."""
+        latest = STATE.latest or {}
+        return {
+            "pv": _r(latest.get("pvPow")), "inv": _r(latest.get("invPow")),
+            "bat": _r(latest.get("batPow")), "soc": _r(latest.get("soc")),
+        }
+
+    def _log_step(self) -> None:
+        """One debug entry per meter-driven step: the phase when it changed, and the decision unless the
+        step wrote (that entry, from `_apply`, already carries it)."""
+        if self.enabled and self.phase is not None and self.phase.key != self._dbg_phase:
+            self._dbg_phase = self.phase.key
+            DEBUG.add("phase", self.phase, soc=_r(self._ctx.get("soc")), pv=_r(self._ctx.get("pv")))
+        if self.enabled and not self._wrote and self.last_action is not None:
+            DEBUG.add("step", self.last_action, **self._ctx)
 
     # ---- control loop -----------------------------------------------------
     async def run(self) -> None:
@@ -633,8 +669,11 @@ class GridController:
                 await self._failsafe()
                 continue
             self._new_meter.clear()
+            self._wrote = False
+            self._ctx = {}
             try:
                 await self._step()
+                self._log_step()
             except Exception:
                 _LOGGER.exception("Grid control step failed")
 
@@ -713,6 +752,7 @@ class GridController:
             self._last_export_guard_t = now
             self._save()
             self.last_action = Msg("act.export_guard", "warn", meter=round(meter_w), old=old, new=new_reserve)
+            DEBUG.add("guard", self.last_action, meter=round(meter_w), reserve=new_reserve)
             _LOGGER.warning("%s", self.last_action)
             return
         if self.charge_reserve_w <= self._reserve_base_w or now - self._last_export_guard_t < EXPORT_GUARD_DECAY_INTERVAL_S:
@@ -723,6 +763,7 @@ class GridController:
         self._last_export_guard_t = now
         self._save()
         self.last_action = Msg("act.export_guard_relax", "info", old=old, new=new_reserve)
+        DEBUG.add("guard", self.last_action, meter=round(meter_w), reserve=new_reserve)
         _LOGGER.info("%s", self.last_action)
 
     def _adapt_gain(self, error: float) -> None:
@@ -755,6 +796,7 @@ class GridController:
         now = time.time()
         self._guard_against_export(self.meter_w, now)
         await self._resync_setpoint(now)
+        self._ctx = {"meter": round(self.meter_w), "setpoint": self.setpoint, **self._live()}
 
         if self.setpoint is None:
             settings = await self._client.read_ems_settings()
@@ -779,10 +821,13 @@ class GridController:
                 self.last_action = Msg("act.skip_soc_pv_unknown", "warn")
                 return
             self.phase, cap = plan[0], min(plan[1], self.max_w)
+            self._ctx["pvMin"] = _r(STATE.pv_min(self.min_interval_s, now))
+            self._ctx["cap"] = cap
         else:
             self.phase = Msg("phase.schedule_off")
 
         error = self.meter_w - self.target_w
+        self._ctx["error"] = round(error)
         # The plan's cap can drop quickly (PV falls, night starts): pull down at once, bypassing
         # the write-rate limit below - waiting out the interval here would keep over-charging or
         # exporting until it happens to elapse.
@@ -871,6 +916,7 @@ class GridController:
         if actual is None or int(actual) == self.setpoint:
             return
         _LOGGER.info("Device output is %s W, not the %s W last set here (changed elsewhere?) - adopting it", actual, self.setpoint)
+        DEBUG.add("sync", Msg("dbg.adopted", "warn", actual=int(actual), was=self.setpoint), setpoint=int(actual))
         self.setpoint = int(actual)
         self._failsafe_w = None
 
@@ -880,6 +926,7 @@ class GridController:
             self.last_action = Msg("act.dry_run", "warn", w=watts, why=why)
             _LOGGER.info("%s", self.last_action)
             self._last_write_t = time.time()
+            self._log_write(watts)
             return True
         ok = await self._client.set_output_power(watts, self.strategy_type)
         self._last_write_t = time.time()
@@ -889,7 +936,13 @@ class GridController:
         else:
             self.last_action = Msg("act.set_failed", "error", w=watts, why=why)
         _LOGGER.info("%s", self.last_action)
+        self._log_write(watts)
         return ok
+
+    def _log_write(self, watts: int) -> None:
+        self._wrote = True
+        if self.last_action is not None:
+            DEBUG.add("write", self.last_action, **{**self._ctx, "w": watts})
 
     async def _failsafe(self) -> None:
         """No meter sample for `meter_max_age_s`: drive to a safe output. Runs again every
@@ -912,7 +965,9 @@ class GridController:
         first = not self._failsafe_active
         if not first and now - self._last_write_t < self.min_interval_s:
             return  # a short CONTROL_METER_MAX_AGE must not turn the re-check into a write storm
+        self._ctx = {"setpoint": self.setpoint}
         if first:
+            DEBUG.add("failsafe", Msg("dbg.meter_missing", "warn", s=round(self.meter_max_age_s)))
             self._failsafe_active = True
             _LOGGER.warning(
                 "No meter sample for %.0fs: mqtt_connected=%s config_seen=%s state_topic=%s value_path=%s",
@@ -923,6 +978,7 @@ class GridController:
             cap = self._plan_cap(STATE.latest or {}, now)
             if cap is not None:
                 self.phase, watts = cap[0], min(watts, cap[1])
+                self._ctx.update(self._live(), cap=cap[1])
             else:
                 watts = 0
         if watts == self._failsafe_w:

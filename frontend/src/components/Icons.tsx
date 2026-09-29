@@ -4,6 +4,7 @@ const PATHS = {
   telemetry: <><path d="M4 19V5" /><path d="M4 19h16" /><path d="M8 15l3-4 3 2 4-6" /></>,
   control: <><path d="M4 7h10M18 7h2M4 17h2M10 17h10" /><circle cx="16" cy="7" r="2" /><circle cx="8" cy="17" r="2" /></>,
   raw: <><path d="M4 6h16M4 12h10M4 18h13" /></>,
+  debug: <><path d="M9 9a3 3 0 0 1 6 0v6a3 3 0 0 1-6 0z" /><path d="M9 12H4M15 12h5M9 8L6 5M15 8l3-3M9 16l-3 3M15 16l3 3" /></>,
   sun: <><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></>,
   moon: <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />,
   themeAuto: <><circle cx="12" cy="12" r="9" /><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" /></>,
