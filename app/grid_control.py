@@ -40,6 +40,7 @@ SETTING_PREFIX = "setting."  # settings.db key prefix of the plan settings (the 
 INV_MAX_AGE_S = 120  # inverter reading older than this is not trusted as the control base
 EXPORT_GUARD_DECAY_INTERVAL_S = 600  # how rarely the export guard's charge-reserve raise may step back down
 EXPORT_GUARD_DECAY_STEP_W = 10  # ... and by how little each time, so it settles rather than hunts
+EXPORT_GUARD_RELAX_INTERVAL_S = 60  # while the house draws from the grid the raise gives way faster: once per this long
 REDUCE_LOCKOUT_S = 20  # after a write, a meter sample this much later may already pull the output down (see _step)
 PV_FLOOR_WINDOW_S = 20  # look-back of the lowest-PV filter the day cap is sized from (see _pv_floor)
 LIMIT_RECHECK_S = 300  # how long "inverter delivers less than commanded" is trusted before the setpoint is re-sent
@@ -753,7 +754,13 @@ class GridController:
         Without export, slowly relax any such raise back toward the user's own configured reserve
         (`_reserve_base_w`), one small step at a time and never faster than once per
         EXPORT_GUARD_DECAY_INTERVAL_S - a quick decay would just re-trigger the raise above on the next
-        PV dip. It never goes below that baseline, so it settles exactly where export last needed it."""
+        PV dip. It never goes below that baseline, so it settles exactly where export last needed it.
+
+        Import at the meter says the raise is not needed any more (the output is below what the house draws),
+        so the raise gives way by that import, at most once per EXPORT_GUARD_RELAX_INTERVAL_S (the meter lags a
+        write, one sample must not be counted twice). Without this a single large export - e.g. the output
+        jumping after a change in the app - left the raise (up to 2000 W, easing 10 W per 10 minutes, kept over a
+        restart) subtracting from the PV for hours: output 0 W, everything into the battery, 300 W import."""
         if meter_w < 0:
             reserve_max = PLAN_SETTINGS["CHARGE_RESERVE_W"][3]
             new_reserve = min(round(self.charge_reserve_w - meter_w), int(reserve_max))
@@ -767,7 +774,19 @@ class GridController:
             DEBUG.add("guard", self.last_action, meter=round(meter_w), reserve=new_reserve)
             _LOGGER.warning("%s", self.last_action)
             return
-        if self.charge_reserve_w <= self._reserve_base_w or now - self._last_export_guard_t < EXPORT_GUARD_DECAY_INTERVAL_S:
+        if self.charge_reserve_w <= self._reserve_base_w:
+            return
+        imported = meter_w - self.target_w
+        if imported > self.deadband_w and now - self._last_export_guard_t >= EXPORT_GUARD_RELAX_INTERVAL_S:
+            old = self.charge_reserve_w
+            self.charge_reserve_w = max(round(old - imported), round(self._reserve_base_w))
+            self._last_export_guard_t = now
+            self._save()
+            self.last_action = Msg("act.export_guard_import", "info", meter=round(meter_w), old=old, new=self.charge_reserve_w)
+            DEBUG.add("guard", self.last_action, meter=round(meter_w), reserve=self.charge_reserve_w)
+            _LOGGER.info("%s", self.last_action)
+            return
+        if now - self._last_export_guard_t < EXPORT_GUARD_DECAY_INTERVAL_S:
             return
         old = self.charge_reserve_w
         new_reserve = max(self.charge_reserve_w - EXPORT_GUARD_DECAY_STEP_W, self._reserve_base_w)

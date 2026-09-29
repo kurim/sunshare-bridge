@@ -247,7 +247,10 @@ dass der Zähler ~0 W zeigt. Er ist **aus und im Trockenlauf**, bis du ihn im UI
    sofort um genau diesen Betrag an (Obergrenze 2000 W), damit die nächste Runde mehr PV der Batterie statt der
    Ausgabe zuweist. Bleibt die Einspeisung danach aus, senkt der Regler die Anhebung träge wieder ab (alle 10 Minuten
    um 10 W) und nie unter den von dir eingestellten Wert – eine manuelle Änderung der Reserve im UI setzt diesen
-   Basiswert neu.
+   Basiswert neu. Zieht das Haus dagegen Strom aus dem Netz (Bezug über Zielwert + Totzone), gibt die Anhebung
+   schneller nach: um den Bezug, höchstens einmal pro Minute – sonst würde ein einzelner großer Ausreißer (z. B. der
+   Ausgang springt nach einer Änderung in der App) die PV stundenlang zurückhalten. Im Debug-Log als Eintrag
+   „Exportschutz-Anhebung zurückgenommen“.
 6. **Regel-Takt (`CONTROL_MIN_INTERVAL`, im UI einstellbar, 60-120 s):** Mindestabstand zwischen zwei Schreibzugriffen.
    Er ist an die typische Melde-Verzögerung von Netzzählern (60-120 s) gebunden, damit der Regler nie auf einen
    Messwert reagiert, der den letzten eigenen Schreibzugriff noch gar nicht widerspiegelt – das würde die Regelung

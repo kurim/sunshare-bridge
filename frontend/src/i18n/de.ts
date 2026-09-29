@@ -352,6 +352,7 @@ export const de = {
   "msg.act.set": "gesetzt: {w} W ({why})",
   "msg.act.export_guard": "Einspeisung {meter} W am Zähler – Ladereserve angehoben {old} → {new} W",
   "msg.act.export_guard_relax": "länger keine Einspeisung – Ladereserve gesenkt {old} → {new} W",
+  "msg.act.export_guard_import": "Bezug {meter} W am Zähler – Exportschutz-Anhebung zurückgenommen {old} → {new} W",
   "msg.act.set_failed": "FEHLER beim Setzen von {w} W ({why})",
   "msg.why.control": "Zähler {meter} W, WR {inv} W, Grenze {cap} W",
   "msg.why.control_fast": "Zähler {meter} W, WR {inv} W, Grenze {cap} W – ohne Wartezeit reduziert",
