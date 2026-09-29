@@ -3,6 +3,17 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [1.1.1] - 2026-09-29
+
+### Bridge
+
+- Neu: Die Abfrage-Intervalle `ENERGY_POLL_INTERVAL` (summierter PV-Ertrag aus der Cloud) und `CLOUD_POLL_INTERVAL`
+  (Live-Werte, nur Cloud-Modus) sind jetzt im UI einstellbar (System-Konfiguration), gelten ohne Neustart (spätestens
+  nach 5 s, auch wenn vorher ein langes Intervall lief) und liegen wie die anderen Einstellungen in `data/settings.db`;
+  die `.env` liefert nur den Default. Grenzen: Ertrag 5–3600 s, Live-Werte 0,5–60 s. Hinweis: Das ist nicht der Takt
+  des Netzzählers – den bestimmt der Zähler selbst. `KEEPALIVE_INTERVAL` und `WEATHER_POLL_INTERVAL` bleiben in der
+  `.env` (ein zu langes Keepalive-Intervall würde den Geräte-Push beenden).
+
 ## [1.1.0] - 2026-09-29
 
 ### Bridge

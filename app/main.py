@@ -19,6 +19,7 @@ import logging
 import os
 import signal
 import time
+from collections.abc import Callable
 
 import aiohttp
 from aiohttp import web
@@ -236,7 +237,15 @@ async def keepalive_loop(client: SunshareCloudClient, interval: float) -> None:
         await asyncio.sleep(interval)
 
 
-async def cloud_poll_loop(client: SunshareCloudClient, mqtt_pub: MqttPublisher | None, interval: float) -> None:
+async def _pause(interval: Callable[[], float]) -> None:
+    """Sleeps `interval()` seconds, reading it again as it goes: a shorter interval set in the UI applies
+    within 5 s instead of after the (possibly hour-long) sleep that was already running."""
+    started = time.monotonic()
+    while (left := started + interval() - time.monotonic()) > 0:
+        await asyncio.sleep(min(left, 5))
+
+
+async def cloud_poll_loop(client: SunshareCloudClient, mqtt_pub: MqttPublisher | None, interval: Callable[[], float]) -> None:
     while True:
         try:
             if STATE.mode == "cloud":
@@ -246,10 +255,10 @@ async def cloud_poll_loop(client: SunshareCloudClient, mqtt_pub: MqttPublisher |
                     await STATE.publish(reading, mqtt_pub)
         except Exception:  # noqa: BLE001
             _LOGGER.exception("Cloud poll failed")
-        await asyncio.sleep(interval)
+        await _pause(interval)
 
 
-async def energy_poll_loop(client: SunshareCloudClient, mqtt_pub: MqttPublisher | None, interval: float) -> None:
+async def energy_poll_loop(client: SunshareCloudClient, mqtt_pub: MqttPublisher | None, interval: Callable[[], float]) -> None:
     """Cumulative PV yield (kWh) — separate from the power-flow source above,
     runs regardless of cloud/lan display mode, needed for HA's Energy dashboard."""
     while True:
@@ -259,7 +268,7 @@ async def energy_poll_loop(client: SunshareCloudClient, mqtt_pub: MqttPublisher 
                 await STATE.publish(normalize_energy_summary(data), mqtt_pub)
         except Exception:  # noqa: BLE001
             _LOGGER.exception("Energy poll failed")
-        await asyncio.sleep(interval)
+        await _pause(interval)
 
 
 async def weather_poll_loop(weather: WeatherClient, interval: float) -> None:
@@ -321,8 +330,6 @@ async def main() -> None:
     ui_port = int(os.environ.get("UI_PORT", "8099"))
     lan_port = int(os.environ.get("LAN_PORT", "80"))
     keepalive_interval = float(os.environ.get("KEEPALIVE_INTERVAL", "3"))
-    cloud_poll_interval = float(os.environ.get("CLOUD_POLL_INTERVAL", "2"))
-    energy_poll_interval = float(os.environ.get("ENERGY_POLL_INTERVAL", "60"))
     weather_poll_interval = float(os.environ.get("WEATHER_POLL_INTERVAL", "1800"))
 
     mqtt_pub: MqttPublisher | None = None
@@ -366,8 +373,8 @@ async def main() -> None:
 
         background = asyncio.gather(
             keepalive_loop(client, keepalive_interval),
-            cloud_poll_loop(client, mqtt_pub, cloud_poll_interval),
-            energy_poll_loop(client, mqtt_pub, energy_poll_interval),
+            cloud_poll_loop(client, mqtt_pub, lambda: controller.cloud_poll_s),  # editable in the UI
+            energy_poll_loop(client, mqtt_pub, lambda: controller.energy_poll_s),
             weather_poll_loop(weather, weather_poll_interval),
             controller.run(),
         )

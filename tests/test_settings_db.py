@@ -114,3 +114,24 @@ def test_a_broken_settings_location_does_not_stop_the_controller(tmp_path, monke
     c = _controller()
     _configure(c, NIGHT_MAX_W=180)
     assert c.night_max_w == 180  # applied, just not persisted
+
+
+def test_poll_intervals_are_ui_settings_that_default_to_the_env_and_persist(monkeypatch):
+    monkeypatch.setenv("ENERGY_POLL_INTERVAL", "30")
+    c = _controller()
+    assert c.energy_poll_s == 30 and c.cloud_poll_s == 2  # .env / built-in defaults
+    _configure(c, ENERGY_POLL_INTERVAL=120)
+    assert c.energy_poll_s == 120
+    monkeypatch.setenv("ENERGY_POLL_INTERVAL", "45")  # the .env changes later: the UI value still wins
+    assert _controller().energy_poll_s == 120
+
+
+def test_poll_intervals_are_range_checked():
+    import pytest as _pytest
+    from app.messages import MsgError
+
+    c = _controller()
+    for key, bad in (("ENERGY_POLL_INTERVAL", 1), ("ENERGY_POLL_INTERVAL", 7200), ("CLOUD_POLL_INTERVAL", 0), ("CLOUD_POLL_INTERVAL", 120)):
+        with _pytest.raises(MsgError):
+            _configure(c, **{key: bad})
+    assert c.energy_poll_s == 60 and c.cloud_poll_s == 2
