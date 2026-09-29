@@ -354,6 +354,7 @@ export const de = {
   "msg.act.export_guard_relax": "länger keine Einspeisung – Ladereserve gesenkt {old} → {new} W",
   "msg.act.set_failed": "FEHLER beim Setzen von {w} W ({why})",
   "msg.why.control": "Zähler {meter} W, WR {inv} W, Grenze {cap} W",
+  "msg.why.control_fast": "Zähler {meter} W, WR {inv} W, Grenze {cap} W – ohne Wartezeit reduziert",
   "msg.why.failsafe": "Zählerwert veraltet, Failsafe",
   "msg.dev.guest": "Gast-Account: NIGHT_MIN_SOC wird von der Bridge umgesetzt",
   "msg.dev.unreadable": "Geräte-Grenzen nicht lesbar",
@@ -411,6 +412,7 @@ export const de = {
   "dbg.c.setpoint": "Sollwert",
   "dbg.c.inv": "WR",
   "dbg.c.pv": "PV",
+  "dbg.c.pvPow": "PV gebucht",
   "dbg.c.pvMin": "PV min.",
   "dbg.c.bat": "Akku",
   "dbg.c.soc": "SOC",
@@ -420,7 +422,7 @@ export const de = {
   "dbg.c.reserve": "Reserve",
   "dbg.empty": "Noch keine Einträge. Sie entstehen, sobald ein Zähler-Wert ankommt (der Regler muss dafür nicht aktiv sein; Regelschritte und Schreibzugriffe nur bei aktivem Regler).",
   "dbg.noMatch": "kein Eintrag passt zum Filter",
-  "dbg.legend": "Neueste oben. Zeile = was passiert ist; darunter die Werte, auf denen die Entscheidung beruhte (W, SOC in %): Zähler + = Bezug, Akku + = entlädt, „PV min.“ = niedrigster PV-Wert der letzten Regel-Spanne, aus dem der Tages-Deckel berechnet wird.",
+  "dbg.legend": "Neueste oben. Zeile = was passiert ist; darunter die Werte, auf denen die Entscheidung beruhte (W, SOC in %): Zähler + = Bezug, Akku + = entlädt, „PV“ = echte PV-Leistung (bei der Cloud PV1 + PV2 bzw. PV gebucht), „PV gebucht“ nur wenn abweichend, „PV min.“ = niedrigster PV-Wert der letzten 20 s, aus dem der Tages-Deckel berechnet wird.",
 } as const;
 
 export type Messages = { [K in keyof typeof de]: string };

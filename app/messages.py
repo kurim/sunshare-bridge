@@ -45,6 +45,7 @@ EN: dict[str, str] = {
     "act.export_guard": "feed-in {meter} W at the meter – charge reserve raised {old} → {new} W",
     "act.export_guard_relax": "no feed-in for a while – charge reserve eased {old} → {new} W",
     "why.control": "meter {meter} W, inverter {inv} W, limit {cap} W",
+    "why.control_fast": "meter {meter} W, inverter {inv} W, limit {cap} W – reduced without waiting for the interval",
     "why.failsafe": "meter value stale, failsafe",
     # device limits (main account)
     "dev.guest": "Guest account: NIGHT_MIN_SOC is enforced by the bridge",

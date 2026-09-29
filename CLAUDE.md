@@ -38,8 +38,11 @@ docker compose up -d --build
 ## Konventionen
 
 - UI-Texte und Doku: Deutsch. Code und Kommentare: Englisch.
-- **Berechnungen laufen auf `pvPow`/`batPow`** (Entscheidung des Autors). Die Real-Werte (`pvPreal`/`batPreal`/
-  `invPreal`) werden nur angezeigt und als eigene MQTT-Sensoren veröffentlicht – nicht in Berechnungen mischen.
+- **Berechnungen laufen auf `pvPow`/`batPow`** (Entscheidung des Autors: Ertrags-/Batteriezähler, Energiefluss). Die
+  Real-Werte (`pvPreal`/`batPreal`/`invPreal`) werden angezeigt und als eigene MQTT-Sensoren veröffentlicht. **Eine
+  Ausnahme, ebenfalls Entscheidung des Autors:** Der Regler bemisst den Tages-Deckel am PV-*Angebot* (`state.pv_supply`:
+  `pvPreal`, sonst PV1 + PV2, sonst `pvPow` – Cloud liefert kein `pvPreal`). `pvPow` ist gebucht und spiegelt bei nicht
+  ladendem Akku nur die aktuelle Abgabe, ein Deckel daraus kann nie über den Sollwert steigen. Sonst nichts mischen.
 - Die Web-UI kann die Ausgangsleistung des Geräts ändern. Login nur, wenn `UI_USER`/`UI_PASSWORD` gesetzt sind; ohne
   sie **keine Authentifizierung** → nur im vertrauenswürdigen LAN. Für Zugriff von außen (Cloudflare Tunnel) ist der
   Login Pflicht, und der Tunnel darf nur auf den UI-Port zeigen (nie auf den LAN-Proxy-Port 80). Siehe README,

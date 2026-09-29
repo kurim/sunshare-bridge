@@ -27,6 +27,22 @@ PV_SAMPLES_KEEP_S = 180  # how far back pv_min() can look (the controller asks f
 HISTORY_MAXLEN = 600  # ~30-50min at the default 3-5s publish cadence
 
 
+def pv_supply(reading: dict[str, Any]) -> float | None:
+    """What the PV can deliver right now, for the grid controller: the real (unfiltered) total `pvPreal`
+    (LAN push), else PV1 + PV2 (the same sum, when the source lists the strings), else the booked `pvPow`
+    (cloud). `pvPow` alone is no supply figure: it is what flowed into the system, so while the battery
+    takes no surplus it equals the current output - a cap sized from it could never rise above the
+    setpoint and would pin the output (13:50-14:03 in the field report: pvPow 110 = output, real PV 135)."""
+    real = reading.get("pvPreal")
+    if real is not None:
+        return float(real)
+    p1, p2 = reading.get("pv1Pow"), reading.get("pv2Pow")
+    if p1 is not None and p2 is not None:
+        return float(p1) + float(p2)
+    booked = reading.get("pvPow")
+    return None if booked is None else float(booked)
+
+
 def _derive_battery_flow(reading: dict[str, Any]) -> dict[str, Any]:
     """Splits the signed `batPow` (negative = charging, per API_DOCUMENTATION.md
     §3c) into two always-positive-or-None power sensors. Home Assistant's Energy
@@ -57,7 +73,7 @@ class SharedState:
         self.mode = self._load_mode()
         self.latest: dict[str, Any] | None = None
         self.history: deque[dict[str, Any]] = deque(maxlen=HISTORY_MAXLEN)
-        self._pv_samples: deque[tuple[float, float]] = deque()  # (time, pvPow) of the last PV_SAMPLES_KEEP_S
+        self._pv_samples: deque[tuple[float, float]] = deque()  # (time, PV supply, see pv_supply) of the last PV_SAMPLES_KEEP_S
         self.lock = asyncio.Lock()
         self.meter_w: float | None = None  # external grid meter (set by the grid controller), + = import
         self.meter_t: float | None = None
@@ -183,6 +199,8 @@ class SharedState:
         runs, only the MQTT publish itself is skipped."""
         async with self.lock:
             merged = {**(self.latest or {}), **reading}
+            if "pvPow" in reading and "pvPreal" not in reading:
+                merged.pop("pvPreal", None)  # a real value from the other source would be stale
             merged.update(_derive_battery_flow(merged))
             merged.update(_derive_export(merged))
             now = time.time()
@@ -191,8 +209,9 @@ class SharedState:
             # be counted again.
             if "pvPow" in reading or "batPow" in reading:
                 merged["_power_t"] = now
-                if reading.get("pvPow") is not None:
-                    self._pv_samples.append((now, float(reading["pvPow"])))
+                supply = pv_supply(reading)
+                if supply is not None:
+                    self._pv_samples.append((now, supply))
                     while self._pv_samples and now - self._pv_samples[0][0] > PV_SAMPLES_KEEP_S:
                         self._pv_samples.popleft()
                 self._integrate_energy(
@@ -242,7 +261,7 @@ class SharedState:
         self._broadcast()
 
     def pv_min(self, window_s: float, now: float | None = None) -> float | None:
-        """Lowest pvPow seen in the last `window_s` seconds (None: no sample in that window)."""
+        """Lowest PV supply (see pv_supply) seen in the last `window_s` seconds (None: no sample in that window)."""
         limit = (time.time() if now is None else now) - min(window_s, PV_SAMPLES_KEEP_S)
         values = [pv for t, pv in self._pv_samples if t >= limit]
         return min(values) if values else None

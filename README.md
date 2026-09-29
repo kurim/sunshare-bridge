@@ -226,8 +226,10 @@ dass der Zähler ~0 W zeigt. Er ist **aus und im Trockenlauf**, bis du ihn im UI
    abdecken“ an, ruht sie, siehe Punkt 4) bis `CHARGE_FULL_SOC`, danach wird PV durchgereicht – bis auf `CHARGE_TRICKLE_W` (Default 5 W), die auch bei vollem
    Akku für ihn zurückbleiben, damit der Standby-Verbrauch des Geräts ihn nicht bis zum nächsten Morgen leerzieht;
    nachts wird bis `NIGHT_MAX_W` abgegeben, solange der SOC über `NIGHT_MIN_SOC` liegt. Der Tages-Deckel wird aus dem
-   niedrigsten PV-Wert der letzten Regel-Spanne (`CONTROL_MIN_INTERVAL`) berechnet, nicht aus dem aktuellen – so schlägt
-   ein kurzer PV-Einbruch zwischen zwei Schreibvorgängen nicht als Akku-Entladung durch. Alle Parameter sind im UI
+   niedrigsten PV-Wert der letzten 20 s berechnet, nicht aus dem aktuellen – so schlägt
+   ein kurzer PV-Einbruch zwischen zwei Schreibvorgängen nicht als Akku-Entladung durch. „PV“ ist dabei das Angebot:
+   die echte PV-Leistung (`pvPreal`, bei der Cloud PV1 + PV2, sonst `pvPow`) – nicht der gebuchte Wert `pvPow`, der bei
+   nicht ladendem Akku nur die aktuelle Abgabe spiegelt. Alle Parameter sind im UI
    einstellbar; die `.env`-Werte (bzw. Add-on-Optionen) sind nur die Defaults. Was du im UI änderst, liegt in
    `data/settings.db`, gewinnt beim nächsten Start gegen die `.env` und bleibt bei Neustart und Update erhalten –
    gespeichert wird nur, was vom Default abweicht, alles Übrige folgt weiter der `.env`. „Standard (.env)“ im UI und
@@ -250,6 +252,10 @@ dass der Zähler ~0 W zeigt. Er ist **aus und im Trockenlauf**, bis du ihn im UI
    Er ist an die typische Melde-Verzögerung von Netzzählern (60-120 s) gebunden, damit der Regler nie auf einen
    Messwert reagiert, der den letzten eigenen Schreibzugriff noch gar nicht widerspiegelt – das würde die Regelung
    aufschaukeln statt sie zu dämpfen. Kein eigener Wert bekannt → der niedrigste zulässige Wert (60 s) wird verwendet.
+   **Reduzieren wartet nicht:** Liegt der Ausgang über dem, was das Haus zieht (Zähler unter dem Zielwert, z. B. weil ein
+   großer Verbraucher ausgegangen ist), geht die Korrektur schon 20 s nach der letzten Schreibung raus – sofern seither
+   ein neuer Zähler-Wert eingetroffen ist, denn ein älterer kann die Schreibung noch nicht zeigen. Erhöhen bleibt beim
+   Mindestabstand. Im Debug-Log steht so ein Schritt als „ohne Wartezeit reduziert“.
 7. **Failsafe (`CONTROL_FALLBACK_W`, im UI einstellbar):** Meldet der Zähler zu lange nichts (`CONTROL_METER_MAX_AGE`),
    setzt der Regler diesen Sollwert – als Obergrenze für die Grundlast deines Hauses, die du selbst für sicher hältst.
    Solange der Zähler wegbleibt, wird der Wert alle `CONTROL_METER_MAX_AGE` neu berechnet und nur bei Änderung

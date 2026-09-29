@@ -354,6 +354,7 @@ export const en: Messages = {
   "msg.act.export_guard_relax": "no feed-in for a while – charge reserve eased {old} → {new} W",
   "msg.act.set_failed": "FAILED to set {w} W ({why})",
   "msg.why.control": "meter {meter} W, inverter {inv} W, limit {cap} W",
+  "msg.why.control_fast": "meter {meter} W, inverter {inv} W, limit {cap} W – reduced without waiting for the interval",
   "msg.why.failsafe": "meter value stale, failsafe",
   "msg.dev.guest": "Guest account: NIGHT_MIN_SOC is enforced by the bridge",
   "msg.dev.unreadable": "Device limits not readable",
@@ -411,6 +412,7 @@ export const en: Messages = {
   "dbg.c.setpoint": "Setpoint",
   "dbg.c.inv": "Inverter",
   "dbg.c.pv": "PV",
+  "dbg.c.pvPow": "PV booked",
   "dbg.c.pvMin": "PV min.",
   "dbg.c.bat": "Battery",
   "dbg.c.soc": "SOC",
@@ -420,5 +422,5 @@ export const en: Messages = {
   "dbg.c.reserve": "Reserve",
   "dbg.empty": "No entries yet. They appear as soon as a meter reading arrives (the controller need not be active; control steps and writes only when it is).",
   "dbg.noMatch": "no entry matches the filter",
-  "dbg.legend": "Newest first. The line is what happened; below it the values the decision was based on (W, SOC in %): meter + = import, battery + = discharging, “PV min.” = lowest PV of the last control interval, which the day cap is sized from.",
+  "dbg.legend": "Newest first. The line is what happened; below it the values the decision was based on (W, SOC in %): meter + = import, battery + = discharging, “PV” = real PV power (cloud: PV1 + PV2, else booked), “PV booked” only when it differs, “PV min.” = lowest PV of the last 20 s, which the day cap is sized from.",
 };
