@@ -31,6 +31,7 @@ EN: dict[str, str] = {
     "act.skip_no_inverter": "skipped: no fresh inverter power",
     "act.skip_soc_pv_unknown": "skipped: SOC or PV power unknown",
     "act.ok_deadband": "ok: meter {meter} W within the deadband",
+    "act.wait_output": "waiting: inverter delivers {inv} W of the {w} W set, although PV/battery could supply more",
     "act.ok_limit": "ok: meter {meter} W, inverter at its limit ({inv} W)",
     "act.ok_unchanged": "ok: setpoint {w} W unchanged",
     "act.dry_run": "DRY RUN: would set {w} W ({why})",

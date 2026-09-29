@@ -247,6 +247,7 @@ export const en: Messages = {
   "fl.s.bat": "Battery",
   "fl.s.socket": "Socket",
   "fl.s.export": "Feed-in house grid",
+  "fl.s.setpoint": "Setpoint",
   "fl.s.meter": "Grid (meter)",
   "fl.s.soc": "SOC",
 
@@ -340,6 +341,7 @@ export const en: Messages = {
   "msg.act.skip_no_inverter": "skipped: no fresh inverter power",
   "msg.act.skip_soc_pv_unknown": "skipped: SOC or PV power unknown",
   "msg.act.ok_deadband": "ok: meter {meter} W within the deadband",
+  "msg.act.wait_output": "waiting: inverter delivers {inv} W of the {w} W set, although PV/battery could supply more",
   "msg.act.ok_limit": "ok: meter {meter} W, inverter at its limit ({inv} W)",
   "msg.act.ok_unchanged": "ok: setpoint {w} W unchanged",
   "msg.act.dry_run": "DRY RUN: would set {w} W ({why})",

@@ -17,7 +17,7 @@ from typing import Any
 _LOGGER = logging.getLogger("sunshare.history")
 
 # Column names are the reading keys the charts use, so rows can be fed to them unchanged.
-FIELDS = ("pvPow", "pvPreal", "invPow", "batPow", "batPreal", "loadPow", "offGridPow", "exportPow", "gridPow", "meterPow", "soc")
+FIELDS = ("pvPow", "pvPreal", "invPow", "batPow", "batPreal", "loadPow", "offGridPow", "exportPow", "gridPow", "meterPow", "soc", "setpointW")
 PRUNE_EVERY_S = 3600
 MAX_POINTS = 1500  # longer ranges are averaged into coarser buckets to keep the SVG light
 

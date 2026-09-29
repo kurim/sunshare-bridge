@@ -247,6 +247,7 @@ export const de = {
   "fl.s.bat": "Akku",
   "fl.s.socket": "Steckdose",
   "fl.s.export": "Abgabe Hausnetz",
+  "fl.s.setpoint": "Sollwert",
   "fl.s.meter": "Netz (Zähler)",
   "fl.s.soc": "SOC",
 
@@ -340,6 +341,7 @@ export const de = {
   "msg.act.skip_no_inverter": "übersprungen: keine frische Wechselrichter-Leistung",
   "msg.act.skip_soc_pv_unknown": "übersprungen: SOC oder PV-Leistung unbekannt",
   "msg.act.ok_deadband": "ok: Zähler {meter} W im Totband",
+  "msg.act.wait_output": "wartet: Wechselrichter liefert {inv} W der eingestellten {w} W, obwohl PV/Akku mehr hergeben könnten",
   "msg.act.ok_limit": "ok: Zähler {meter} W, Wechselrichter am Limit ({inv} W)",
   "msg.act.ok_unchanged": "ok: Sollwert {w} W unverändert",
   "msg.act.dry_run": "TROCKENLAUF: würde {w} W setzen ({why})",

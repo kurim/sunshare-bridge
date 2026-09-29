@@ -38,6 +38,9 @@ INV_MAX_AGE_S = 120  # inverter reading older than this is not trusted as the co
 EXPORT_GUARD_DECAY_INTERVAL_S = 600  # how rarely the export guard's charge-reserve raise may step back down
 EXPORT_GUARD_DECAY_STEP_W = 10  # ... and by how little each time, so it settles rather than hunts
 LIMIT_RECHECK_S = 300  # how long "inverter delivers less than commanded" is trusted before the setpoint is re-sent
+LIMIT_UNEXPLAINED_S = 120  # ... when nothing in PV/battery explains it (see _limit_plausible): just a device-lag grace
+LIMIT_CHARGING_W = 20  # battery charging harder than this counts as "the device serves the battery first"
+LIMIT_SOC_MARGIN = 3  # % above the discharge stop from which the battery could supply the setpoint
 DEVICE_SYNC_INTERVAL_S = 300  # how often the device's own output setpoint is read back (see _resync_setpoint)
 DEVICE_SYNC_SETTLE_S = 120  # ... and how long after a write of ours it may still be taking effect
 
@@ -227,7 +230,8 @@ class GridController:
 
         self.meter_w: float | None = None
         self.meter_t: float | None = None
-        self.setpoint: int | None = None
+        self._setpoint: int | None = None
+        self.setpoint = None  # property: mirrors into STATE for the history (see _sync_state_setpoint)
         self.strategy_type = 1
         self.last_action: Msg | None = None
         self._last_write_t = 0.0
@@ -242,6 +246,20 @@ class GridController:
         self._new_meter = asyncio.Event()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._mqtt: mqtt.Client | None = None
+
+    @property
+    def setpoint(self) -> int | None:
+        return self._setpoint
+
+    @setpoint.setter
+    def setpoint(self, value: int | None) -> None:
+        self._setpoint = value
+        self._sync_state_setpoint()
+
+    def _sync_state_setpoint(self) -> None:
+        """The output the bridge is holding, for the live/long-term charts - only while it actually
+        steers the device (a stale value from a disabled or dry-run controller would mislead)."""
+        STATE.setpoint_w = self._setpoint if self.enabled and not self.dry_run else None
 
     @property
     def gain(self) -> float:
@@ -471,6 +489,7 @@ class GridController:
             self.cover_load = cover_load
         if adaptive_gain is not None:
             self.adaptive_gain = adaptive_gain  # learned_gain is untouched: it survives the toggle
+        self._sync_state_setpoint()  # enabled / dry_run may just have changed
         if was_active and not (self.enabled and not self.dry_run) and self.restore_w is not None:
             ok = await self._client.set_output_power(self.restore_w, self.strategy_type)
             self.last_action = (
@@ -734,13 +753,18 @@ class GridController:
             # raising the setpoint would only wind up. That is a guess, though - the device may deliver
             # nothing for a reason that has nothing to do with its supply (and only takes up the value
             # again once it is written anew), while the house keeps drawing from the grid. So it only
-            # holds for LIMIT_RECHECK_S; after that the setpoint is re-sent (recomputed from what the
-            # inverter really delivers) and the wait starts over.
+            # holds for LIMIT_RECHECK_S (only LIMIT_UNEXPLAINED_S if PV/battery could supply more, see
+            # _limit_plausible); after that the setpoint is re-sent (recomputed from what the inverter
+            # really delivers) and the wait starts over.
             if error > 0 and inv < self.setpoint - self.deadband_w:
+                plausible = self._limit_plausible(latest)
                 if self._limit_since is None:
                     self._limit_since = now
-                if now - self._limit_since < LIMIT_RECHECK_S:
-                    self.last_action = Msg("act.ok_limit", "ok", meter=round(self.meter_w), inv=round(inv))
+                if now - self._limit_since < (LIMIT_RECHECK_S if plausible else LIMIT_UNEXPLAINED_S):
+                    self.last_action = (
+                        Msg("act.ok_limit", "ok", meter=round(self.meter_w), inv=round(inv)) if plausible
+                        else Msg("act.wait_output", "warn", inv=round(inv), w=self.setpoint)
+                    )
                     return
                 recheck = True
             else:
@@ -766,6 +790,23 @@ class GridController:
             self.last_action = Msg("act.ok_unchanged", "ok", w=new)
             return
         await self._apply(new, Msg("why.control", meter=round(self.meter_w), inv=round(inv), cap=cap))
+
+    def _limit_plausible(self, latest: dict[str, Any]) -> bool:
+        """Could the supply explain an inverter that delivers less than commanded? Yes if the battery is
+        charging (the device serves it first), or neither the PV covers the setpoint nor the battery has
+        energy above its discharge stop. If PV or battery could supply it and the device still delivers
+        less, the "limit" is more likely something else (a setpoint the device has not taken up) - the
+        loop then waits only a short grace instead of LIMIT_RECHECK_S. Unknown values count as plausible."""
+        soc, pv, bat = latest.get("soc"), latest.get("pvPow"), latest.get("batPow")
+        if soc is None or pv is None or bat is None or self.setpoint is None:
+            return True
+        if bat < -LIMIT_CHARGING_W:
+            return True
+        floor = (self.device_limits or {}).get("soc_min")
+        if floor is None:
+            floor = DEVICE_SOC_MIN_MAX
+        could_supply = pv >= self.setpoint - self.deadband_w or soc > float(floor) + LIMIT_SOC_MARGIN
+        return not could_supply
 
     async def _resync_setpoint(self, now: float) -> None:
         """The bridge only knows the output it wrote itself; a change made elsewhere (the official app)

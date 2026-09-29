@@ -666,8 +666,8 @@ def _stuck_controller(client, monkeypatch, now):
     return c
 
 
-def _step_at(c, monkeypatch, t, inv=0):
-    monkeypatch.setattr(st.STATE, "latest", {"invPow": inv, "_power_t": t})
+def _step_at(c, monkeypatch, t, inv=0, **supply):
+    monkeypatch.setattr(st.STATE, "latest", {"invPow": inv, "_power_t": t, **supply})
     with mock.patch("time.time", return_value=t):
         asyncio.run(c._step())
 
@@ -718,6 +718,65 @@ def test_a_real_limit_that_ends_resets_the_wait(monkeypatch):
     assert c._limit_since == t0
     _step_at(c, monkeypatch, t0 + LIMIT_RECHECK_S - 10, inv=16)  # the inverter delivers again
     assert c._limit_since is None
+
+
+def test_an_unexplained_shortfall_is_retested_after_a_short_grace_only(monkeypatch):
+    """Battery well above its discharge stop and not charging, yet the inverter delivers 0 W of a
+    16 W setpoint while the grid supplies the house: the supply can't be the reason (issue #26)."""
+    from app.grid_control import LIMIT_UNEXPLAINED_S
+
+    client = RecordingClient()
+    t0 = 1_000_000.0
+    c = _stuck_controller(client, monkeypatch, t0)
+    full_but_silent = {"soc": 98, "pvPow": 0, "batPow": 0}
+    _step_at(c, monkeypatch, t0, **full_but_silent)
+    assert c.last_action.key == "act.wait_output" and c.last_action.level == "warn"
+    assert c.last_action.params == {"inv": 0, "w": 16}
+    _step_at(c, monkeypatch, t0 + LIMIT_UNEXPLAINED_S - 10, **full_but_silent)
+    assert client.outputs == []
+    _step_at(c, monkeypatch, t0 + LIMIT_UNEXPLAINED_S, **full_but_silent)
+    assert client.outputs == [64]
+
+
+def test_a_shortfall_while_the_battery_charges_still_counts_as_a_limit(monkeypatch):
+    from app.grid_control import LIMIT_UNEXPLAINED_S
+
+    client = RecordingClient()
+    t0 = 1_000_000.0
+    c = _stuck_controller(client, monkeypatch, t0)
+    charging = {"soc": 40, "pvPow": 300, "batPow": -280}  # the device serves the battery first
+    _step_at(c, monkeypatch, t0, **charging)
+    _step_at(c, monkeypatch, t0 + LIMIT_UNEXPLAINED_S + 30, **charging)
+    assert c.last_action.key == "act.ok_limit" and client.outputs == []
+
+
+@pytest.mark.parametrize("supply, plausible", [
+    ({"soc": 98, "pvPow": 0, "batPow": 0}, False),      # battery could supply it
+    ({"soc": 50, "pvPow": 0, "batPow": 5}, False),      # discharging a little, plenty left
+    ({"soc": 22, "pvPow": 500, "batPow": 0}, False),    # battery at its stop, but PV alone covers it
+    ({"soc": 21, "pvPow": 0, "batPow": 0}, True),       # at the device's discharge stop (20 %) + margin, no PV
+    ({"soc": 40, "pvPow": 300, "batPow": -280}, True),  # charging first
+    ({"soc": None, "pvPow": 0, "batPow": 0}, True),     # unknown -> keep the old trust
+])
+def test_limit_plausibility(supply, plausible):
+    c = _controller()
+    c.setpoint = 100
+    assert c._limit_plausible(supply) is plausible
+
+
+def test_the_setpoint_reaches_the_shared_state_only_while_steering(monkeypatch):
+    """History and charts show the commanded output - not a stale value of a disabled/dry-run controller."""
+    client = RecordingClient()
+    c = _ctl(client)
+    assert st.STATE.setpoint_w is None
+    asyncio.run(c.configure(enabled=True, dry_run=True))  # setpoint is read (100) but nothing is steered
+    assert c.setpoint == 100 and st.STATE.setpoint_w is None
+    asyncio.run(c.configure(dry_run=False))
+    assert st.STATE.setpoint_w == 100
+    asyncio.run(c._apply(64, Msg("why.control", meter=0, inv=0, cap=800)))
+    assert st.STATE.setpoint_w == 64
+    asyncio.run(c.configure(enabled=False))
+    assert st.STATE.setpoint_w is None
 
 
 def test_country_max_power_is_main_account_only():

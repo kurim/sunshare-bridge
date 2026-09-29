@@ -24,6 +24,13 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Forma
   gilt jetzt nur noch 5 Minuten; danach wird der Sollwert – aus der tatsächlichen Abgabe neu berechnet – erneut
   gesendet (auch wenn er gleich bleibt) und die Wartezeit beginnt von vorn. Eine echte Grenze kostet so höchstens
   einen Schreibzugriff alle 5 Minuten; die adaptive Regelung lernt aus diesem erneuten Senden nicht.
+- Neu (#26): Ist ein „Limit“ unwahrscheinlich – der Akku liegt über dem Entladestopp (20 % + 3), lädt nicht (> 20 W)
+  und die PV deckt den Sollwert nicht allein, oder die PV reicht allein –, wartet der Regler nur 2 statt 5 Minuten
+  (Status „wartet: Wechselrichter liefert … obwohl PV/Akku mehr hergeben könnten“). Fehlen SOC/PV/Akku-Werte,
+  bleibt es bei 5 Minuten.
+- Neu (#26): Der Sollwert des Reglers wird im Verlauf mitgeschrieben (Spalte `setpointW` in `history.db`, ältere
+  Datenbanken werden automatisch ergänzt) und als Kurve „Sollwert“ im Leistungs-Chart angezeigt – nur solange der
+  Regler aktiv ist und nicht im Trockenlauf. Eine dauerhafte Lücke zur WR-Abgabe macht solche Fälle nachvollziehbar.
 
 ## [1.0.16] - 2026-09-28
 

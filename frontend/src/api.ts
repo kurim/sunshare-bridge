@@ -43,6 +43,8 @@ export interface Reading {
   gridPow?: number | null;
   exportPow?: number | null;
   meterPow?: number | null;
+  /** Output the controller is holding (only while it steers the device). */
+  setpointW?: number | null;
   _meterT?: number | null;
   todayEnergyKwh?: number | null;
   lifetimeEnergyKwh?: number | null;

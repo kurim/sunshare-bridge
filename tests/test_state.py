@@ -123,3 +123,19 @@ def test_lan_payload_is_normalised_including_real_values():
     r = normalize_lan(raw, 7)
     assert r["pvPreal"] == 24 and r["batPreal"] == -3 and r["invPreal"] == -1 and r["offGridPow"] == 5
     assert r["deviceId"] == 7 and r["source"] == "lan" and "extra" not in r
+
+
+def test_publish_carries_the_controllers_setpoint_into_the_reading_and_the_history():
+    """Issue #26: the commanded output must be reconstructable afterwards (compare it with invPow)."""
+    state = st.SharedState()
+    state.setpoint_w = 210
+
+    async def go():
+        await state.publish({"pvPow": 100, "batPow": 0, "invPow": 0}, None)
+        steering = state.latest["setpointW"]
+        state.setpoint_w = None
+        await state.publish({"pvPow": 100, "batPow": 0}, None)
+        return steering
+
+    assert asyncio.run(go()) == 210
+    assert "setpointW" not in state.latest  # not steering any more: no stale value
