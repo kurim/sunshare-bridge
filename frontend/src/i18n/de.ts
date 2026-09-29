@@ -354,6 +354,7 @@ export const de = {
   "msg.act.export_guard_relax": "länger keine Einspeisung – Ladereserve gesenkt {old} → {new} W",
   "msg.act.set_failed": "FEHLER beim Setzen von {w} W ({why})",
   "msg.why.control": "Zähler {meter} W, WR {inv} W, Grenze {cap} W",
+  "msg.why.control_fast": "Zähler {meter} W, WR {inv} W, Grenze {cap} W – ohne Wartezeit reduziert",
   "msg.why.failsafe": "Zählerwert veraltet, Failsafe",
   "msg.dev.guest": "Gast-Account: NIGHT_MIN_SOC wird von der Bridge umgesetzt",
   "msg.dev.unreadable": "Geräte-Grenzen nicht lesbar",

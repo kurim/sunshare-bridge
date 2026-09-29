@@ -252,6 +252,10 @@ dass der Zähler ~0 W zeigt. Er ist **aus und im Trockenlauf**, bis du ihn im UI
    Er ist an die typische Melde-Verzögerung von Netzzählern (60-120 s) gebunden, damit der Regler nie auf einen
    Messwert reagiert, der den letzten eigenen Schreibzugriff noch gar nicht widerspiegelt – das würde die Regelung
    aufschaukeln statt sie zu dämpfen. Kein eigener Wert bekannt → der niedrigste zulässige Wert (60 s) wird verwendet.
+   **Reduzieren wartet nicht:** Liegt der Ausgang über dem, was das Haus zieht (Zähler unter dem Zielwert, z. B. weil ein
+   großer Verbraucher ausgegangen ist), geht die Korrektur schon 20 s nach der letzten Schreibung raus – sofern seither
+   ein neuer Zähler-Wert eingetroffen ist, denn ein älterer kann die Schreibung noch nicht zeigen. Erhöhen bleibt beim
+   Mindestabstand. Im Debug-Log steht so ein Schritt als „ohne Wartezeit reduziert“.
 7. **Failsafe (`CONTROL_FALLBACK_W`, im UI einstellbar):** Meldet der Zähler zu lange nichts (`CONTROL_METER_MAX_AGE`),
    setzt der Regler diesen Sollwert – als Obergrenze für die Grundlast deines Hauses, die du selbst für sicher hältst.
    Solange der Zähler wegbleibt, wird der Wert alle `CONTROL_METER_MAX_AGE` neu berechnet und nur bei Änderung

@@ -354,6 +354,7 @@ export const en: Messages = {
   "msg.act.export_guard_relax": "no feed-in for a while – charge reserve eased {old} → {new} W",
   "msg.act.set_failed": "FAILED to set {w} W ({why})",
   "msg.why.control": "meter {meter} W, inverter {inv} W, limit {cap} W",
+  "msg.why.control_fast": "meter {meter} W, inverter {inv} W, limit {cap} W – reduced without waiting for the interval",
   "msg.why.failsafe": "meter value stale, failsafe",
   "msg.dev.guest": "Guest account: NIGHT_MIN_SOC is enforced by the bridge",
   "msg.dev.unreadable": "Device limits not readable",

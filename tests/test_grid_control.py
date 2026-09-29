@@ -1003,3 +1003,46 @@ def test_a_stale_real_value_from_the_other_source_is_dropped_when_a_reading_has_
     asyncio.run(s.publish({"pvPow": 110, "pvPreal": 135, "batPow": 0}, None))
     asyncio.run(s.publish({"pvPow": 90, "batPow": 0}, None))  # e.g. cloud mode after a switch
     assert "pvPreal" not in s.latest
+
+
+# --- reducing does not wait for the write interval ------------------------------------------
+
+def _reduction_step(monkeypatch, *, since_write, sample_after_write=True, meter=-100.0, adaptive=False):
+    """A step `since_write` s after the last write, the meter showing feed-in (output above the house's draw)."""
+    _, noon = _day(soc=50, pv=500)
+    c = _ctl(FakeClient(guest=True))
+    asyncio.run(c.configure(enabled=True, dry_run=False, plan=True, cover_load=True, adaptive_gain=adaptive))
+    c.setpoint, c.meter_w = 300, meter
+    c._last_sync_t = noon  # no read-back this round
+    c._last_write_t = noon - since_write
+    c.meter_t = noon - (since_write - 2 if sample_after_write else since_write + 5)
+    monkeypatch.setattr(st.STATE, "latest", {"soc": 50, "pvPow": 500, "batPow": 0, "invPow": 300, "_power_t": noon})
+    with mock.patch("time.time", return_value=noon):
+        asyncio.run(c._step())
+    return c
+
+
+def test_a_reduction_goes_out_without_waiting_for_the_interval(monkeypatch):
+    c = _reduction_step(monkeypatch, since_write=30)  # 30 s < CONTROL_MIN_INTERVAL (60 s)
+    assert c.last_action.key == "act.set" and c.setpoint == round(300 + c.gain * (-100.0 - c.target_w))
+    assert c.last_action.params["why"].key == "why.control_fast"
+
+
+def test_a_reduction_still_respects_the_short_lockout_after_a_write(monkeypatch):
+    c = _reduction_step(monkeypatch, since_write=10)  # inside REDUCE_LOCKOUT_S
+    assert c.last_action.key == "act.skip_interval" and c.setpoint == 300
+
+
+def test_a_reduction_needs_a_meter_sample_that_arrived_after_the_last_write(monkeypatch):
+    c = _reduction_step(monkeypatch, since_write=30, sample_after_write=False)  # cannot show the write's effect yet
+    assert c.last_action.key == "act.skip_interval" and c.setpoint == 300
+
+
+def test_an_increase_still_waits_for_the_interval(monkeypatch):
+    c = _reduction_step(monkeypatch, since_write=30, meter=400.0)  # house draws more than the output
+    assert c.last_action.key == "act.skip_interval" and c.setpoint == 300
+
+
+def test_a_reduction_ahead_of_the_interval_does_not_train_the_adaptive_gain(monkeypatch):
+    c = _reduction_step(monkeypatch, since_write=30, adaptive=True)
+    assert c.last_action.key == "act.set" and c._prev_error is None

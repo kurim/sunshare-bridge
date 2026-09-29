@@ -40,6 +40,7 @@ SETTING_PREFIX = "setting."  # settings.db key prefix of the plan settings (the 
 INV_MAX_AGE_S = 120  # inverter reading older than this is not trusted as the control base
 EXPORT_GUARD_DECAY_INTERVAL_S = 600  # how rarely the export guard's charge-reserve raise may step back down
 EXPORT_GUARD_DECAY_STEP_W = 10  # ... and by how little each time, so it settles rather than hunts
+REDUCE_LOCKOUT_S = 20  # after a write, a meter sample this much later may already pull the output down (see _step)
 PV_FLOOR_WINDOW_S = 20  # look-back of the lowest-PV filter the day cap is sized from (see _pv_floor)
 LIMIT_RECHECK_S = 300  # how long "inverter delivers less than commanded" is trusted before the setpoint is re-sent
 LIMIT_UNEXPLAINED_S = 120  # ... when nothing in PV/battery explains it (see _limit_plausible): just a device-lag grace
@@ -844,6 +845,7 @@ class GridController:
         # exporting until it happens to elapse.
         over_cap = self.setpoint > cap and (cap == 0 or self.setpoint > cap + self.deadband_w)
         recheck = False
+        fast = False  # a reduction that went ahead of the write interval
         if over_cap:
             self._limit_since = None
         else:
@@ -878,14 +880,22 @@ class GridController:
             # (or the inverter's own output) leaves at the current setpoint: the interval only held
             # something back if a different value would have gone out.
             if now - self._last_write_t < self.min_interval_s:
-                would = round(min(max(inv + self.gain * error, self.min_w), cap))
-                if would == self.setpoint and not recheck:
-                    self.last_action = Msg("act.ok_unchanged", "ok", w=would)
-                else:
-                    self.last_action = Msg("act.skip_interval", "warn")
-                return
+                # Reducing does not wait for the interval: output above what the house draws feeds the
+                # grid or charges the battery for nothing, while too little output only costs a moment of
+                # import. It needs a meter sample that arrived after the last write (an older one cannot
+                # show its effect) and a short lockout, so a lagging meter cannot make it reduce twice.
+                fast = error < 0 and now - self._last_write_t >= REDUCE_LOCKOUT_S and (self.meter_t or 0) > self._last_write_t
+                if not fast:
+                    would = round(min(max(inv + self.gain * error, self.min_w), cap))
+                    if would == self.setpoint and not recheck:
+                        self.last_action = Msg("act.ok_unchanged", "ok", w=would)
+                    else:
+                        self.last_action = Msg("act.skip_interval", "warn")
+                    return
 
-        if recheck:
+        if fast:
+            self._prev_error = None  # taken ahead of the interval: its effect is not a clean grade for the gain
+        elif recheck:
             self._limit_since = now  # re-arm: the next test comes after another full LIMIT_RECHECK_S
             self._prev_error = None  # a re-send is not a correction whose effect could be graded
         else:
@@ -897,7 +907,8 @@ class GridController:
         if new == self.setpoint and not recheck:
             self.last_action = Msg("act.ok_unchanged", "ok", w=new)
             return
-        await self._apply(new, Msg("why.control", meter=round(self.meter_w), inv=round(inv), cap=cap))
+        why = "why.control_fast" if fast else "why.control"
+        await self._apply(new, Msg(why, meter=round(self.meter_w), inv=round(inv), cap=cap))
 
     def _limit_plausible(self, latest: dict[str, Any]) -> bool:
         """Could the supply explain an inverter that delivers less than commanded? Yes if the battery is
