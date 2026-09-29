@@ -3,6 +3,7 @@ import { getMe, logout, type Me } from "./api";
 import { Icon, type IconName } from "./components/Icons";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { Control } from "./Control";
+import { Debug } from "./Debug";
 import { Flow } from "./Flow";
 import { useNow } from "./hooks";
 import { I18nProvider, LANGUAGES, useI18n, type Key, type Lang } from "./i18n";
@@ -19,6 +20,7 @@ const TABS: { to: string; label: Key; icon: IconName }[] = [
   { to: "/telemetry", label: "nav.telemetry", icon: "telemetry" },
   { to: "/control", label: "nav.control", icon: "control" },
   { to: "/raw", label: "nav.raw", icon: "raw" },
+  { to: "/debug", label: "nav.debug", icon: "debug" },
 ];
 
 function Page({ path, onSessionEnded }: { path: string; onSessionEnded: () => void }) {
@@ -27,6 +29,7 @@ function Page({ path, onSessionEnded }: { path: string; onSessionEnded: () => vo
     case "/telemetry": return <Telemetry />;
     case "/control": return <Control />;
     case "/raw": return <Raw onSessionEnded={onSessionEnded} />;
+    case "/debug": return <Debug onSessionEnded={onSessionEnded} />;
     default: return <Overview />;
   }
 }

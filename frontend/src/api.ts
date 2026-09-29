@@ -203,3 +203,19 @@ export type RawEvent =
 
 export const getRaw = () => api<RawEntry[]>("/api/raw");
 export const clearRaw = () => api<{ ok: boolean }>("/api/raw/clear", { method: "POST" });
+
+/** One entry of the controller's debug trail (app/debug_log.py): a message plus the numbers behind it. */
+export interface DebugEntry {
+  id: number;
+  t: number;
+  kind: "meter" | "step" | "write" | "guard" | "failsafe" | "sync" | "phase" | "config";
+  msg: Msg;
+  ctx: Record<string, number>;
+}
+export interface DebugSnapshot {
+  entries: DebugEntry[];
+  last_id: number;
+  size: number;
+}
+export const getDebug = (since = 0) => api<DebugSnapshot>(`/api/debug?since=${since}`);
+export const clearDebug = () => api<{ ok: boolean }>("/api/debug/clear", { method: "POST" });

@@ -223,6 +223,17 @@ input[aria-invalid="true"] { border-color: var(--bad); }
   .raw-cols { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); align-items: start; }
 }
 .pane { max-height: 32rem; overflow: auto; margin-top: .4rem; }
+/* Debug page: one row per controller event, the numbers behind the decision underneath */
+.rawbar select { min-width: 0; font: inherit; padding: .7rem; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+.dbg-list { margin-top: .4rem; }
+.dbg-row { border-top: 1px solid var(--line); padding: .4rem 0; }
+.dbg-row:first-child { border-top: 0; }
+.dbg-main { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem .5rem; font-size: .85rem; }
+.dbg-time { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .78rem; flex: none; }
+.dbg-text { min-width: 0; overflow-wrap: anywhere; }
+.dbg-ctx { display: flex; flex-wrap: wrap; gap: .1rem .8rem; margin-top: .15rem; color: var(--muted); font-size: .75rem; }
+.dbg-ctx b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+
 .frow { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto; gap: .5rem; padding: .3rem 0; border-top: 1px solid var(--line); font-size: .82rem; align-items: baseline; }
 .frow:first-child { border-top: 0; }
 .fk { word-break: break-all; }

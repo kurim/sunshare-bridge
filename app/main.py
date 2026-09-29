@@ -33,6 +33,7 @@ from .messages import MsgError
 from .lan_proxy import make_app as make_lan_app
 from .models import normalize_cloud, normalize_energy_summary
 from .mqtt_publisher import MqttPublisher
+from .debug_log import DEBUG
 from .raw_log import RAW
 from .state import STATE
 from .sunshare_cloud import SunshareCloudClient, SunshareLoginError, guest_from_env
@@ -185,6 +186,17 @@ def make_ui_app(
         RAW.clear()
         return web.json_response({"ok": True})
 
+    async def get_debug(request: web.Request) -> web.Response:
+        try:
+            since = int(request.query.get("since", "0"))
+        except ValueError:
+            since = 0
+        return web.json_response(DEBUG.snapshot(since))
+
+    async def clear_debug(request: web.Request) -> web.Response:
+        DEBUG.clear()
+        return web.json_response({"ok": True})
+
     async def get_env(request: web.Request) -> web.Response:
         return web.json_response(describe_env())
 
@@ -198,6 +210,8 @@ def make_ui_app(
     app.router.add_get("/api/raw", get_raw)
     app.router.add_get("/api/raw/stream", raw_stream)
     app.router.add_post("/api/raw/clear", clear_raw)
+    app.router.add_get("/api/debug", get_debug)
+    app.router.add_post("/api/debug/clear", clear_debug)
     app.router.add_get("/api/env", get_env)
     app.router.add_get("/api/weather", get_weather)
     app.router.add_get("/api/control", get_control)

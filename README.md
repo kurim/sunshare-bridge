@@ -144,6 +144,7 @@ installierbar (Manifest, Service Worker, Safe-Area-Layout, Hell/Dunkel nach Syst
 | **Fluss** `/app/flow` | Charts für Leistung, Netzzähler und SOC: Live (mit Glättung), Heute/Gestern (echte Kalendertage) oder 6 h · 24 h · 7 T · 30 T aus dem Verlauf; Leistungskurven (PV, WR, Akku, Steckdose, Abgabe Hausnetz, Sollwert des Reglers) per Klick auf die Legende einzeln aus-/einblendbar (gemerkt); Tooltip per Maus/Touch, Lücken als Unterbrechung |
 | **Telemetrie** `/app/telemetry` | Live-Leistungen, SOC mit Schwellen, Erträge und Zähler, Lade-Effizienz, „Ausgang gespeist aus …“ |
 | **Regler** `/app/control` | Regler/Trockenlauf/Plan, Parameter, Plan-Vorschau, Geräte-Grenzen, `.env`-Ansicht |
+| **Debug** `/app/debug` | Was der Regler gesehen und entschieden hat, zum Nachvollziehen von Kurven: jeder Zähler-Wert (mit PV/WR/Akku/SOC in dem Moment), jeder Regelschritt mit den Werten dahinter (Zähler, PV, „PV min.“, Deckel, Abweichung, Sollwert) und seiner Entscheidung, jeder Schreibzugriff, Phasenwechsel, Exportschutz, vom Gerät übernommener Ausgang, Failsafe und Einstellungsänderungen; Filter nach Art und Text, Pause, JSON-Download (nur im Speicher, letzte 3000 Einträge; Regelschritte und Schreibzugriffe nur bei aktivem Regler) |
 | **Raw** `/app/raw` | Jeder Push des Geräts unverändert samt Antwort des Servers, Feldübersicht, Filter, Pause, JSON-Download (nur im Speicher, `RAW_LOG_SIZE`) |
 
 **Desktop und Handy:** Auf dem Desktop liegt die Navigation (mit Icons) in der Kopfzeile und die Seiten nutzen die volle

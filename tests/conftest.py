@@ -19,6 +19,10 @@ def isolated_data(tmp_path, monkeypatch):
     monkeypatch.setattr(st, "ENERGY_FILE", tmp_path / "battery_energy.json")
     monkeypatch.setattr(st, "HISTORY_FILE", tmp_path / "history.db")
     st.STATE._pv_samples.clear()
+    import app.debug_log as dbg
+
+    dbg.DEBUG.clear()
+    dbg.DEBUG._seq = 0  # the module-level log is imported by name elsewhere: reset it in place
     monkeypatch.setattr(st.STATE, "setpoint_w", None)
     for key in list(os.environ):
         if key.startswith(("SUNSHARE_", "UI_", "WEB_", "MQTT_", "METER_", "CONTROL_", "NIGHT_", "CHARGE_", "HISTORY_", "RAW_")):
