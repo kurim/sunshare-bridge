@@ -16,7 +16,8 @@ Interpretation dort nachziehen.
 | `models.py` | `normalize_cloud()` / `normalize_lan()` → gemeinsames Schema |
 | `state.py` | Letzter Messwert (gemerged), Energie-Integration (Trapezregel), abgeleitete Werte (`exportPow`, `batCharge/DischargePow`, `meterPow`), SSE-Broadcast, Lade-Effizienz-Basis |
 | `mqtt_publisher.py` | State-Topic + HA-Discovery (`_SENSORS`) |
-| `grid_control.py` | Nulleinspeisungs-Regler + Batterie-Plan; Parameter (`PLAN_SETTINGS`) zur Laufzeit änderbar, in `data/control.json` gespeichert |
+| `grid_control.py` | Nulleinspeisungs-Regler + Batterie-Plan; Parameter (`PLAN_SETTINGS`) zur Laufzeit änderbar, in `data/settings.db` gespeichert |
+| `settings_db.py` | SQLite-Speicher (`data/settings.db`) für alles, was in der UI geändert wurde: nur Abweichungen von den `.env`-/Add-on-Defaults (Vorrang vor diesen), Transaktion pro Speichern; ersetzt das frühere `control.json` (wird einmal importiert und zu `.migrated` umbenannt) |
 | `history_db.py` | Langzeit-Verlauf: ein Ø-Wert/Minute in SQLite (`data/history.db`), Migration fehlender Spalten |
 | `raw_log.py` | Flüchtiger Ringpuffer der rohen Geräte-Pushes (`/raw`) |
 | `env_view.py` | Read-only-Sicht auf die `.env` (Passwörter maskiert) |
