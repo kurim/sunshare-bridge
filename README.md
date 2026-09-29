@@ -226,8 +226,10 @@ dass der Zähler ~0 W zeigt. Er ist **aus und im Trockenlauf**, bis du ihn im UI
    abdecken“ an, ruht sie, siehe Punkt 4) bis `CHARGE_FULL_SOC`, danach wird PV durchgereicht – bis auf `CHARGE_TRICKLE_W` (Default 5 W), die auch bei vollem
    Akku für ihn zurückbleiben, damit der Standby-Verbrauch des Geräts ihn nicht bis zum nächsten Morgen leerzieht;
    nachts wird bis `NIGHT_MAX_W` abgegeben, solange der SOC über `NIGHT_MIN_SOC` liegt. Der Tages-Deckel wird aus dem
-   niedrigsten PV-Wert der letzten Regel-Spanne (`CONTROL_MIN_INTERVAL`) berechnet, nicht aus dem aktuellen – so schlägt
-   ein kurzer PV-Einbruch zwischen zwei Schreibvorgängen nicht als Akku-Entladung durch. Alle Parameter sind im UI
+   niedrigsten PV-Wert der letzten 20 s berechnet, nicht aus dem aktuellen – so schlägt
+   ein kurzer PV-Einbruch zwischen zwei Schreibvorgängen nicht als Akku-Entladung durch. „PV“ ist dabei das Angebot:
+   die echte PV-Leistung (`pvPreal`, bei der Cloud PV1 + PV2, sonst `pvPow`) – nicht der gebuchte Wert `pvPow`, der bei
+   nicht ladendem Akku nur die aktuelle Abgabe spiegelt. Alle Parameter sind im UI
    einstellbar; die `.env`-Werte (bzw. Add-on-Optionen) sind nur die Defaults. Was du im UI änderst, liegt in
    `data/settings.db`, gewinnt beim nächsten Start gegen die `.env` und bleibt bei Neustart und Update erhalten –
    gespeichert wird nur, was vom Default abweicht, alles Übrige folgt weiter der `.env`. „Standard (.env)“ im UI und

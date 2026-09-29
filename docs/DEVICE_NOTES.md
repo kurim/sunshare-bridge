@@ -81,8 +81,14 @@ Beobachtungen aus Mitschnitten (26 min, ~100–140 W PV):
   31,7 W). Gleitender Durchschnitt über ~20 s beruhigt die Anzeige.
 - Energie über den Zeitraum: PV `pvPow` 33,1 Wh vs. `pvPreal` 39,0 Wh (−15 %); Batterie geladen `batPow` 19,1 Wh vs.
   `batPreal` 18,3 Wh (−4 %). Erträge aus `pvPow` sind bei Schwachlicht also zu niedrig, Batteriezähler aus `batPow`
-  liegen nah an den Real-Werten. Die Bridge rechnet deshalb weiter mit `pvPow`/`batPow` und stellt die Real-Werte
-  zusätzlich als eigene Sensoren bereit.
+  liegen nah an den Real-Werten. Die Bridge rechnet deshalb für Erträge/Zähler weiter mit `pvPow`/`batPow` und stellt
+  die Real-Werte zusätzlich als eigene Sensoren bereit.
+- **Ausnahme Regler:** `pvPow` ist „gebucht“ und **kein PV-Angebot**. Nimmt der Akku keinen Überschuss auf, ist
+  `pvPow` = `invPow` = aktueller Sollwert (Mitschnitt 29.09., 13:50–14:03: `pvPow` 110 = `invPow` 110 = `loadPow` 110,
+  `pvPreal` 135 W, `batPow` 0). Ein Deckel „PV minus Reserve“ aus `pvPow` konnte den Sollwert deshalb nie über den
+  aktuellen Wert heben (Ausgang hing 13 Minuten bei 110 W, bei 137 W Sollwert lieferte der WR sofort 136 W). Der Regler
+  nimmt darum `pvPreal` (Cloud: PV1 + PV2, sonst `pvPow`) für den Deckel. Nach einem Ausgang von 0 W lädt der Akku die
+  gesamte PV (`batPow` = −`pvPow`): dann ist `pvPow` wieder das echte Angebot.
 - Die Live-Kacheln der iShareCloud-App zeigen `pvPow`/`batPow`, ihre Verlaufs-Charts die Real-Werte.
 - Tagsüber schaltet der Wechselrichter periodisch (etwa alle 33 s für ein Sample) auf Netz-Durchleitung um.
 

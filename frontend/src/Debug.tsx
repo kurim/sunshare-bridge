@@ -7,7 +7,7 @@ const MAX_KEPT = 3000;
 const MAX_DOM = 300;
 const KINDS = ["meter", "step", "write", "guard", "failsafe", "sync", "phase", "config"] as const;
 // Order of the numbers shown under an entry; SOC is a percentage, everything else watts.
-const CTX_ORDER = ["meter", "pv", "pvMin", "inv", "bat", "soc", "cap", "error", "setpoint", "w", "reserve"] as const;
+const CTX_ORDER = ["meter", "pv", "pvPow", "pvMin", "inv", "bat", "soc", "cap", "error", "setpoint", "w", "reserve"] as const;
 
 const clock = (t: number) => new Date(t * 1000).toLocaleTimeString(undefined, { hour12: false });
 

@@ -45,7 +45,8 @@ def normalize_lan(d: dict[str, Any], device_id: int) -> dict[str, Any]:
         "offGridPow": d.get("offGridPow"),
         "otherPow": d.get("otherPow"),
         # "Real" (unfiltered) values: shown in the UI next to pvPow/batPow and published to MQTT as
-        # separate sensors, but never used for calculations - those stay on pvPow/batPow.
+        # separate sensors. Calculations stay on pvPow/batPow, except the grid controller's PV supply
+        # (state.pv_supply), which needs pvPreal: pvPow only mirrors the current output.
         "pvPreal": d.get("pvPreal"),
         "batPreal": d.get("batPreal"),
         "invPreal": d.get("invPreal"),

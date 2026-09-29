@@ -411,6 +411,7 @@ export const de = {
   "dbg.c.setpoint": "Sollwert",
   "dbg.c.inv": "WR",
   "dbg.c.pv": "PV",
+  "dbg.c.pvPow": "PV gebucht",
   "dbg.c.pvMin": "PV min.",
   "dbg.c.bat": "Akku",
   "dbg.c.soc": "SOC",
@@ -420,7 +421,7 @@ export const de = {
   "dbg.c.reserve": "Reserve",
   "dbg.empty": "Noch keine Einträge. Sie entstehen, sobald ein Zähler-Wert ankommt (der Regler muss dafür nicht aktiv sein; Regelschritte und Schreibzugriffe nur bei aktivem Regler).",
   "dbg.noMatch": "kein Eintrag passt zum Filter",
-  "dbg.legend": "Neueste oben. Zeile = was passiert ist; darunter die Werte, auf denen die Entscheidung beruhte (W, SOC in %): Zähler + = Bezug, Akku + = entlädt, „PV min.“ = niedrigster PV-Wert der letzten Regel-Spanne, aus dem der Tages-Deckel berechnet wird.",
+  "dbg.legend": "Neueste oben. Zeile = was passiert ist; darunter die Werte, auf denen die Entscheidung beruhte (W, SOC in %): Zähler + = Bezug, Akku + = entlädt, „PV“ = echte PV-Leistung (bei der Cloud PV1 + PV2 bzw. PV gebucht), „PV gebucht“ nur wenn abweichend, „PV min.“ = niedrigster PV-Wert der letzten 20 s, aus dem der Tages-Deckel berechnet wird.",
 } as const;
 
 export type Messages = { [K in keyof typeof de]: string };

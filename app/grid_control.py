@@ -30,7 +30,7 @@ import paho.mqtt.client as mqtt
 from .debug_log import DEBUG
 from .messages import Msg, MsgError
 from .settings_db import SettingsDB
-from .state import STATE
+from .state import STATE, pv_supply
 from .sunshare_cloud import DEVICE_SOC_MIN_MAX, SunshareCloudClient
 
 _LOGGER = logging.getLogger("sunshare.control")
@@ -40,6 +40,7 @@ SETTING_PREFIX = "setting."  # settings.db key prefix of the plan settings (the 
 INV_MAX_AGE_S = 120  # inverter reading older than this is not trusted as the control base
 EXPORT_GUARD_DECAY_INTERVAL_S = 600  # how rarely the export guard's charge-reserve raise may step back down
 EXPORT_GUARD_DECAY_STEP_W = 10  # ... and by how little each time, so it settles rather than hunts
+PV_FLOOR_WINDOW_S = 20  # look-back of the lowest-PV filter the day cap is sized from (see _pv_floor)
 LIMIT_RECHECK_S = 300  # how long "inverter delivers less than commanded" is trusted before the setpoint is re-sent
 LIMIT_UNEXPLAINED_S = 120  # ... when nothing in PV/battery explains it (see _limit_plausible): just a device-lag grace
 LIMIT_CHARGING_W = 20  # battery charging harder than this counts as "the device serves the battery first"
@@ -625,9 +626,10 @@ class GridController:
     def _live() -> dict[str, float | None]:
         """The device values a decision at this moment would be based on (for the debug log)."""
         latest = STATE.latest or {}
+        supply, booked = _r(pv_supply(latest)), _r(latest.get("pvPow"))
         return {
-            "pv": _r(latest.get("pvPow")), "inv": _r(latest.get("invPow")),
-            "bat": _r(latest.get("batPow")), "soc": _r(latest.get("soc")),
+            "pv": supply, "pvPow": booked if booked != supply else None,  # booked PV only when it differs
+            "inv": _r(latest.get("invPow")), "bat": _r(latest.get("batPow")), "soc": _r(latest.get("soc")),
         }
 
     def _log_step(self) -> None:
@@ -698,17 +700,19 @@ class GridController:
         return Msg("phase.night_out", w=self.night_max_w, soc=_n(soc)), self.night_max_w
 
     def _pv_floor(self, pv: float, now: float) -> float:
-        """PV the day cap is sized from: the lowest value of the last write interval, not just the latest.
+        """PV the day cap is sized from: the lowest value of the last PV_FLOOR_WINDOW_S, not just the latest.
         The setpoint stays as written until the next meter sample, while the PV moves every few seconds;
         a dip below it in between is covered by the battery, which is exactly what the day phases keep
-        it from doing. Sizing from the lowest recent value keeps the output under such dips."""
-        low = STATE.pv_min(self.min_interval_s, now)
+        it from doing. The window is short on purpose: it only filters that second-by-second jitter. A
+        window as long as the write interval lagged behind a rising PV (the setpoint then trailed it by
+        up to a minute and the difference went into the battery even with the house drawing from the grid)."""
+        low = STATE.pv_min(PV_FLOOR_WINDOW_S, now)
         return pv if low is None else min(pv, low)
 
     def _plan_cap(self, latest: dict[str, Any], now: float) -> tuple[Msg, int] | None:
         """(phase message, max output watts) for the current time/SOC/PV, or None if
         SOC or PV power are unknown (then nothing is changed)."""
-        soc, pv = latest.get("soc"), latest.get("pvPow")
+        soc, pv = latest.get("soc"), pv_supply(latest)
         if soc is None or pv is None:
             return None
         night = self._night_cap(soc, now)
@@ -901,7 +905,7 @@ class GridController:
         energy above its discharge stop. If PV or battery could supply it and the device still delivers
         less, the "limit" is more likely something else (a setpoint the device has not taken up) - the
         loop then waits only a short grace instead of LIMIT_RECHECK_S. Unknown values count as plausible."""
-        soc, pv, bat = latest.get("soc"), latest.get("pvPow"), latest.get("batPow")
+        soc, pv, bat = latest.get("soc"), pv_supply(latest), latest.get("batPow")
         if soc is None or pv is None or bat is None or self.setpoint is None:
             return True
         if bat < -LIMIT_CHARGING_W:

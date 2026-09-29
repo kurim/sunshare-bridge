@@ -87,7 +87,7 @@ def test_a_step_that_writes_is_logged_once_with_what_it_worked_from(monkeypatch)
 def test_a_step_that_does_not_write_logs_its_decision_and_the_cap_it_used(monkeypatch):
     now = time.time()
     monkeypatch.setattr(st.STATE, "latest", {"soc": 50, "pvPow": 300, "invPow": 100, "batPow": -50, "_power_t": now})
-    st.STATE._pv_samples.extend([(now - 20, 300.0), (now - 5, 240.0)])
+    st.STATE._pv_samples.extend([(now - 15, 300.0), (now - 5, 240.0)])
     c = _controller()
     asyncio.run(c.configure(enabled=True, dry_run=False, plan=True))
     DEBUG.clear()

@@ -3,6 +3,21 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [1.1.2] - 2026-09-29
+
+### Bridge
+
+- Fix: Der Regler hing bei 110 W fest, obwohl mehr PV anlag. Der Tages-Deckel (PV minus Reserve bzw. Exportschutz)
+  wurde aus `pvPow` berechnet, dem *gebuchten* Wert: Nimmt der Akku keinen Überschuss auf, ist er gleich der aktuellen
+  Abgabe (Mitschnitt: `pvPow` 110 = Ausgang 110, `pvPreal` 135). Der Deckel konnte dadurch nie über den Sollwert
+  steigen; bei 137 W Sollwert lieferte der Wechselrichter sofort 136 W. Der Deckel nutzt jetzt das PV-*Angebot*:
+  `pvPreal` (LAN), sonst PV1 + PV2, sonst `pvPow` (Cloud liefert kein `pvPreal`). Erträge, Batteriezähler und
+  Energiefluss bleiben auf `pvPow`/`batPow`.
+- Fix: Bei stark steigender PV lag der Sollwert bis zu eine Minute hinter der PV, und die Differenz lud den Akku, obwohl
+  das Haus 1400 W aus dem Netz zog. Der „niedrigste PV-Wert“ (1.1.0) sah dafür die letzte Regel-Spanne zurück; jetzt
+  nur noch 20 s – genug, um das Zittern im Sekundentakt zu filtern, ohne einer steigenden PV nachzuhängen.
+- Debug-Log: zeigt „PV“ (Angebot) und, wenn abweichend, „PV gebucht“.
+
 ## [1.1.1] - 2026-09-29
 
 ### Bridge

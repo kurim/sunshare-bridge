@@ -881,18 +881,27 @@ def _pv_seen(now, *values_ago):
         st.STATE._pv_samples.append((now - ago, float(w)))
 
 
-def test_the_day_cap_follows_the_lowest_pv_of_the_last_write_interval():
+def test_the_day_cap_follows_the_lowest_recent_pv():
     c = _controller()
     latest, now = _day(soc=50, pv=320)
-    _pv_seen(now, (50, 330), (30, 240), (10, 300))  # a dip to 240 W since the last write
+    _pv_seen(now, (50, 330), (15, 240), (5, 300))  # a dip to 240 W within the last 20 s
     _, cap = c._plan_cap(latest, now)
     assert cap == 240 - c.charge_reserve_w  # sized from the dip, not from the 320 W right now
 
 
-def test_a_pv_dip_older_than_the_write_interval_no_longer_counts():
+def test_a_rising_pv_is_followed_within_seconds_not_a_write_interval_later():
+    """The old look-back (a whole write interval) trailed a ramp by up to a minute, and the difference went
+    into the battery even though the house was drawing from the grid."""
+    c = _controller()
+    latest, now = _day(soc=50, pv=400)
+    _pv_seen(now, (55, 160), (40, 200), (25, 260), (12, 380))
+    assert c._plan_cap(latest, now)[1] == 380 - c.charge_reserve_w  # not 160 - reserve
+
+
+def test_a_pv_dip_older_than_the_look_back_no_longer_counts():
     c = _controller()
     latest, now = _day(soc=50, pv=320)
-    _pv_seen(now, (int(c.min_interval_s) + 30, 240), (10, 330))
+    _pv_seen(now, (30, 240), (10, 330))
     assert c._plan_cap(latest, now)[1] == 320 - c.charge_reserve_w
 
 
@@ -906,7 +915,7 @@ def test_the_current_pv_still_counts_when_it_is_the_lowest():
 def test_the_lowest_pv_applies_to_full_and_cover_load_phases_too():
     c = _controller()
     latest, now = _day(soc=c.full_soc, pv=300)
-    _pv_seen(now, (20, 200))
+    _pv_seen(now, (15, 200))
     assert c._plan_cap(latest, now)[1] == 200 - c.trickle_w  # PV pass-through when full
     asyncio.run(c.configure(cover_load=True))
     latest, now = _day(soc=50, pv=300)
@@ -955,3 +964,42 @@ def test_within_the_interval_a_setpoint_the_cap_already_holds_is_unchanged_not_s
 def test_within_the_interval_a_correction_that_would_go_out_is_still_skipped(monkeypatch):
     c = _step_within_the_interval(monkeypatch, cap_pv=500, inv=110, setpoint=110)  # room to raise it
     assert c.last_action.key == "act.skip_interval" and c.setpoint == 110
+
+
+# --- the cap is sized from the real PV, not from the booked pvPow ------------------------------
+
+def test_the_cap_uses_the_real_pv_not_the_booked_value_that_only_mirrors_the_output():
+    """Field report: pvPow 110 = the inverter's own output (the battery took no surplus) while the real PV
+    was 135 W - a cap from pvPow could never rise above the setpoint and pinned the output at 110 W."""
+    c = _controller()
+    latest, now = _day(soc=50, pv=110)
+    latest["pvPreal"] = 135
+    _pv_seen(now, (10, 135))
+    asyncio.run(c.configure(cover_load=True))
+    assert c._plan_cap(latest, now)[1] == 135  # not 110
+
+
+def test_without_a_real_value_the_pv_strings_are_summed_and_then_the_booked_value_is_used():
+    from app.state import pv_supply
+
+    assert pv_supply({"pvPreal": 150, "pv1Pow": 1, "pv2Pow": 2, "pvPow": 110}) == 150  # LAN
+    assert pv_supply({"pv1Pow": 40, "pv2Pow": 95, "pvPow": 110}) == 135  # cloud: PV1 + PV2
+    assert pv_supply({"pv1Pow": None, "pv2Pow": 95, "pvPow": 110}) == 110  # incomplete strings: booked
+    assert pv_supply({"pvPow": 110}) == 110
+    assert pv_supply({}) is None
+
+
+def test_the_pv_samples_and_the_debug_context_use_the_same_supply(monkeypatch):
+    s = st.SharedState()
+    asyncio.run(s.publish({"pvPow": 110, "pvPreal": 135, "batPow": 0}, None))
+    assert s.pv_min(20) == 135
+    monkeypatch.setattr(st.STATE, "latest", {"pvPow": 110, "pvPreal": 135})
+    live = GridController._live()
+    assert live["pv"] == 135 and live["pvPow"] == 110  # the booked value is shown when it differs
+
+
+def test_a_stale_real_value_from_the_other_source_is_dropped_when_a_reading_has_none():
+    s = st.SharedState()
+    asyncio.run(s.publish({"pvPow": 110, "pvPreal": 135, "batPow": 0}, None))
+    asyncio.run(s.publish({"pvPow": 90, "batPow": 0}, None))  # e.g. cloud mode after a switch
+    assert "pvPreal" not in s.latest
