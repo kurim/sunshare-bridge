@@ -37,6 +37,7 @@ CONTROL_FILE = Path("/data/control.json")
 INV_MAX_AGE_S = 120  # inverter reading older than this is not trusted as the control base
 EXPORT_GUARD_DECAY_INTERVAL_S = 600  # how rarely the export guard's charge-reserve raise may step back down
 EXPORT_GUARD_DECAY_STEP_W = 10  # ... and by how little each time, so it settles rather than hunts
+LIMIT_RECHECK_S = 300  # how long "inverter delivers less than commanded" is trusted before the setpoint is re-sent
 DEVICE_SYNC_INTERVAL_S = 300  # how often the device's own output setpoint is read back (see _resync_setpoint)
 DEVICE_SYNC_SETTLE_S = 120  # ... and how long after a write of ours it may still be taking effect
 
@@ -234,6 +235,7 @@ class GridController:
         self._failsafe_active = False
         self._failsafe_w: int | None = None  # last failsafe target that actually went out
         self._last_sync_t = 0.0
+        self._limit_since: float | None = None  # since when the loop has been holding back for a supposed limit
         self._mqtt_connected = False
         self._config_seen = False
         self._last_payload: str | None = None  # raw text of the last message on the state topic
@@ -720,15 +722,29 @@ class GridController:
         # the write-rate limit below - waiting out the interval here would keep over-charging or
         # exporting until it happens to elapse.
         over_cap = self.setpoint > cap and (cap == 0 or self.setpoint > cap + self.deadband_w)
-        if not over_cap:
+        recheck = False
+        if over_cap:
+            self._limit_since = None
+        else:
             if abs(error) <= self.deadband_w:
+                self._limit_since = None
                 self.last_action = Msg("act.ok_deadband", "ok", meter=round(self.meter_w))
                 return
-            # Needs more, but the inverter already delivers less than commanded
-            # (PV/battery-limited): raising the setpoint would only wind up.
+            # Needs more, but the inverter already delivers less than commanded (PV/battery-limited):
+            # raising the setpoint would only wind up. That is a guess, though - the device may deliver
+            # nothing for a reason that has nothing to do with its supply (and only takes up the value
+            # again once it is written anew), while the house keeps drawing from the grid. So it only
+            # holds for LIMIT_RECHECK_S; after that the setpoint is re-sent (recomputed from what the
+            # inverter really delivers) and the wait starts over.
             if error > 0 and inv < self.setpoint - self.deadband_w:
-                self.last_action = Msg("act.ok_limit", "ok", meter=round(self.meter_w), inv=round(inv))
-                return
+                if self._limit_since is None:
+                    self._limit_since = now
+                if now - self._limit_since < LIMIT_RECHECK_S:
+                    self.last_action = Msg("act.ok_limit", "ok", meter=round(self.meter_w), inv=round(inv))
+                    return
+                recheck = True
+            else:
+                self._limit_since = None
             # Only now, once a correction is actually due, does the write-rate limit apply - checking
             # it any earlier (e.g. before the deadband/limit checks above) would report "skipped:
             # minimum interval" even while already converged, which is misleading: nothing was ever
@@ -737,12 +753,16 @@ class GridController:
                 self.last_action = Msg("act.skip_interval", "warn")
                 return
 
-        if self.adaptive_gain:
-            self._adapt_gain(error)
-        self._prev_error = error
+        if recheck:
+            self._limit_since = now  # re-arm: the next test comes after another full LIMIT_RECHECK_S
+            self._prev_error = None  # a re-send is not a correction whose effect could be graded
+        else:
+            if self.adaptive_gain:
+                self._adapt_gain(error)
+            self._prev_error = error
 
         new = round(min(max(inv + self.gain * error, self.min_w), cap))
-        if new == self.setpoint:
+        if new == self.setpoint and not recheck:
             self.last_action = Msg("act.ok_unchanged", "ok", w=new)
             return
         await self._apply(new, Msg("why.control", meter=round(self.meter_w), inv=round(inv), cap=cap))

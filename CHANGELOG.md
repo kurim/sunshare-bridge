@@ -18,6 +18,12 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Forma
   Errechnete er danach denselben Wert wie vorher, hielt er ihn für unverändert und ließ das Gerät auf dem App-Wert.
   Nicht im Trockenlauf und nicht in den ersten 2 Minuten nach einem eigenen Schreibzugriff (das Gerät zeigt den
   neuen Wert evtl. noch verzögert); der Failsafe setzt seinen Zielwert nach einer Änderung von außen erneut.
+- Fix (#26): Der Regler blieb bei „ok: Wechselrichter am Limit“ dauerhaft hängen. Lieferte der Wechselrichter weniger
+  als befohlen, galt das für immer als PV-/Akku-Grenze – auch wenn das Gerät aus einem anderen Grund nichts abgab
+  und das Haus stundenlang Netzstrom zog; nur Trockenlauf an/aus (schreibt den alten Wert neu) half. Die Annahme
+  gilt jetzt nur noch 5 Minuten; danach wird der Sollwert – aus der tatsächlichen Abgabe neu berechnet – erneut
+  gesendet (auch wenn er gleich bleibt) und die Wartezeit beginnt von vorn. Eine echte Grenze kostet so höchstens
+  einen Schreibzugriff alle 5 Minuten; die adaptive Regelung lernt aus diesem erneuten Senden nicht.
 
 ## [1.0.16] - 2026-09-28
 

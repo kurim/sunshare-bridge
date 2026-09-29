@@ -653,6 +653,73 @@ def test_failsafe_reasserts_its_target_after_an_outside_change(monkeypatch):
     assert client.outputs == [100, 100]  # unchanged target, but the device no longer had it
 
 
+# ---- "inverter at its limit" must not hold forever (issue #26) -----------------------------
+
+def _stuck_controller(client, monkeypatch, now):
+    """The issue's rebuild: plan off, deadband 10, setpoint 16 W, the device delivers 0 W, the grid 112 W."""
+    monkeypatch.setenv("CONTROL_DEADBAND_W", "10")
+    c = _ctl(client)
+    asyncio.run(c.configure(enabled=True, dry_run=False, plan=False))
+    c.setpoint = 16
+    client.device_output = 16
+    c.meter_w = 112.0
+    return c
+
+
+def _step_at(c, monkeypatch, t, inv=0):
+    monkeypatch.setattr(st.STATE, "latest", {"invPow": inv, "_power_t": t})
+    with mock.patch("time.time", return_value=t):
+        asyncio.run(c._step())
+
+
+def test_a_supposed_limit_is_retested_instead_of_holding_forever(monkeypatch):
+    """Regression (issue #26): "inverter delivers less than commanded" was trusted for good - if the
+    device delivered nothing for another reason, the loop never wrote again while the house drew from
+    the grid for hours (only toggling the dry-run, which re-sends the old value, got it out)."""
+    from app.grid_control import LIMIT_RECHECK_S
+
+    client = RecordingClient()
+    t0 = 1_000_000.0
+    c = _stuck_controller(client, monkeypatch, t0)
+    _step_at(c, monkeypatch, t0)
+    assert c.last_action.key == "act.ok_limit" and client.outputs == []
+    _step_at(c, monkeypatch, t0 + LIMIT_RECHECK_S - 10)
+    assert c.last_action.key == "act.ok_limit" and client.outputs == []  # still trusted inside the window
+
+    _step_at(c, monkeypatch, t0 + LIMIT_RECHECK_S)
+    assert client.outputs == [64] and c.setpoint == 64  # 0 W delivered + 0.7 * (112 - 20 W target)
+
+    _step_at(c, monkeypatch, t0 + LIMIT_RECHECK_S + 30)  # the wait starts over after the re-send
+    assert c.last_action.key == "act.ok_limit" and client.outputs == [64]
+    _step_at(c, monkeypatch, t0 + 2 * LIMIT_RECHECK_S)
+    assert client.outputs == [64, 64]  # same value, but re-sent: the device may need it written anew
+
+
+def test_a_retest_does_not_train_the_adaptive_gain(monkeypatch):
+    from app.grid_control import LIMIT_RECHECK_S
+
+    client = RecordingClient()
+    t0 = 1_000_000.0
+    c = _stuck_controller(client, monkeypatch, t0)
+    c.adaptive_gain = True
+    gain = c.learned_gain
+    for k in range(4):
+        _step_at(c, monkeypatch, t0 + k * LIMIT_RECHECK_S)
+    assert len(client.outputs) >= 2 and c.learned_gain == gain  # a re-send is no correction to grade
+
+
+def test_a_real_limit_that_ends_resets_the_wait(monkeypatch):
+    from app.grid_control import LIMIT_RECHECK_S
+
+    client = RecordingClient()
+    t0 = 1_000_000.0
+    c = _stuck_controller(client, monkeypatch, t0)
+    _step_at(c, monkeypatch, t0)
+    assert c._limit_since == t0
+    _step_at(c, monkeypatch, t0 + LIMIT_RECHECK_S - 10, inv=16)  # the inverter delivers again
+    assert c._limit_since is None
+
+
 def test_country_max_power_is_main_account_only():
     guest = _ctl(FakeClient(guest=True))
     with pytest.raises(MsgError) as guest_err:

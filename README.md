@@ -256,6 +256,10 @@ dass der Zähler ~0 W zeigt. Er ist **aus und im Trockenlauf**, bis du ihn im UI
    ersten 2 Minuten nach einem eigenen Schreibzugriff, nicht im Trockenlauf). Hast du ihn zwischenzeitlich in der
    offiziellen App geändert, übernimmt der Regler den Wert des Geräts als Ausgangslage und regelt von dort weiter –
    bei aktivem Regler bleibt dein App-Wert also nicht dauerhaft stehen, sondern wird bei Bedarf wieder überschrieben.
+10. **„Wechselrichter am Limit“:** Liefert der Wechselrichter weniger als befohlen, während das Haus Netzstrom zieht,
+    nimmt der Regler eine PV-/Akku-Grenze an und erhöht nicht weiter (Status „ok: … am Limit“). Das gilt nur
+    5 Minuten: danach sendet er den Sollwert – aus der tatsächlichen Abgabe neu berechnet – erneut, falls das Gerät
+    aus einem anderen Grund nichts abgibt.
 
 ## Wetter-Prognose (OpenWeatherMap)
 
