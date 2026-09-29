@@ -3,6 +3,20 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [1.1.3] - 2026-09-29
+
+### Bridge
+
+- Fix: Der Ausgang blieb über eine Stunde bei 0 W, obwohl das Haus 300 W aus dem Netz zog und die ganze PV in den Akku
+  ging – im Chart wirkte es wie ein Problem von „Netzlast abdecken“. Ursache war die Anhebung des Exportschutzes: Ein
+  einzelner großer Export (~700 W, der Ausgang war nach einer Änderung in der App gesprungen) hob die Ladereserve um
+  genau diesen Betrag an (855 statt 200 W, Statuszeile „Exportschutz 645 W“). Die Anhebung ging nur 10 W pro 10 Minuten
+  zurück und übersteht einen Neustart; sie wird von der PV abgezogen (bei „Netzlast abdecken“ ebenso wie in der
+  normalen Ladephase), der Deckel lag dadurch bei 0. Ein Ändern der Ladereserve im UI setzte sie zurück – das erklärt,
+  warum Aus- und Wiedereinschalten „half“. Jetzt gibt die Anhebung bei Netzbezug nach: um den Bezug (über Zielwert +
+  Totzone), höchstens einmal pro Minute und nie unter die eingestellte Reserve. Das langsame Absenken ohne Bezug
+  bleibt. Im Debug-Log: „Bezug … – Exportschutz-Anhebung zurückgenommen“.
+
 ## [1.1.2] - 2026-09-29
 
 ### Bridge

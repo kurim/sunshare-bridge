@@ -1046,3 +1046,55 @@ def test_an_increase_still_waits_for_the_interval(monkeypatch):
 def test_a_reduction_ahead_of_the_interval_does_not_train_the_adaptive_gain(monkeypatch):
     c = _reduction_step(monkeypatch, since_write=30, adaptive=True)
     assert c.last_action.key == "act.set" and c._prev_error is None
+
+
+# --- the export guard's raise gives way when the house draws from the grid ------------------------
+
+def _raised(c, by):
+    c._guard_against_export(-float(by), 1000.0)  # feed-in of `by` W raises the reserve by that much
+    assert c.charge_reserve_w == c._reserve_base_w + by
+
+
+def test_a_large_raise_eases_by_the_import_instead_of_waiting_hours():
+    """Field report: an export of ~700 W raised the reserve to 855 W; it eased 10 W per 10 minutes, kept over
+    a restart, and held the output at 0 W with 300 W import for an hour."""
+    c = _controller()
+    base = c._reserve_base_w
+    _raised(c, 645)
+    c._guard_against_export(318.0, 1000.0 + 61)  # import 318 W (target 20 W)
+    assert c.charge_reserve_w == base + 645 - round(318.0 - c.target_w)
+    assert c.last_action.key == "act.export_guard_import"
+
+
+def test_the_raise_never_eases_below_the_configured_reserve():
+    c = _controller()
+    _raised(c, 100)
+    c._guard_against_export(900.0, 1000.0 + 61)
+    assert c.charge_reserve_w == c._reserve_base_w
+
+
+def test_one_import_sample_is_not_counted_twice_within_the_relax_interval():
+    c = _controller()
+    _raised(c, 600)
+    c._guard_against_export(300.0, 1000.0 + 61)
+    after_first = c.charge_reserve_w
+    c._guard_against_export(300.0, 1000.0 + 90)  # the meter has not caught up with the write yet
+    assert c.charge_reserve_w == after_first
+    c._guard_against_export(300.0, 1000.0 + 61 + 60)
+    assert c.charge_reserve_w < after_first
+
+
+def test_import_inside_the_dead_band_does_not_touch_the_raise():
+    c = _controller()
+    _raised(c, 100)
+    before = c.charge_reserve_w
+    c._guard_against_export(c.target_w + c.deadband_w - 1, 1000.0 + 61)
+    assert c.charge_reserve_w == before
+
+
+def test_the_raise_is_not_eased_right_after_an_export_raised_it():
+    c = _controller()
+    _raised(c, 100)  # at t = 1000
+    before = c.charge_reserve_w
+    c._guard_against_export(300.0, 1000.0 + 10)  # let the raise take effect first
+    assert c.charge_reserve_w == before
