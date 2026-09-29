@@ -21,7 +21,7 @@ def test_settings_are_validated_and_persisted(isolated_data):
     c = _controller()
     asyncio.run(c.configure(settings={"NIGHT_MAX_W": 180, "NIGHT_START": "22:30"}))
     assert c.night_max_w == 180 and c.night_start == 22 * 60 + 30
-    assert _controller().night_max_w == 180  # a new instance reads control.json
+    assert _controller().night_max_w == 180  # a new instance reads settings.db
 
 
 @pytest.mark.parametrize("bad", [
@@ -44,7 +44,7 @@ def test_meter_max_age_is_settable_and_kept_in_sync_with_state(isolated_data):
     assert c.meter_max_age_s == 180 and st.STATE.meter_max_age_s == 180
     asyncio.run(c.configure(settings={"CONTROL_METER_MAX_AGE": 30}))
     assert c.meter_max_age_s == 30 and st.STATE.meter_max_age_s == 30
-    assert _controller().meter_max_age_s == 30  # a new instance reads control.json
+    assert _controller().meter_max_age_s == 30  # a new instance reads settings.db
 
 
 def test_export_raises_the_charge_reserve_and_persists_it(isolated_data):
@@ -52,7 +52,7 @@ def test_export_raises_the_charge_reserve_and_persists_it(isolated_data):
     before = c.charge_reserve_w
     c._guard_against_export(-50.0, 1000.0)
     assert c.charge_reserve_w == before + 50
-    assert _controller().charge_reserve_w == before + 50  # a new instance reads control.json
+    assert _controller().charge_reserve_w == before + 50  # a new instance reads settings.db
     assert _controller()._reserve_base_w == before  # the baseline itself is untouched by an auto-raise
 
 
@@ -74,10 +74,10 @@ def test_export_guard_is_capped_and_a_no_op_without_export(tmp_path, monkeypatch
     c._guard_against_export(-500.0, 1000.0)
     assert c.charge_reserve_w == 2000  # PLAN_SETTINGS' own CHARGE_RESERVE_W ceiling
 
-    # A control.json of its own - `c`'s raise above just persisted to the shared isolated_data
+    # A settings.db of its own - `c`'s raise above just persisted to the shared isolated_data
     # path, and this instance must start genuinely fresh, not inherit it.
-    import app.grid_control as gc
-    monkeypatch.setattr(gc, "CONTROL_FILE", tmp_path / "other-control.json")
+    import app.settings_db as sdb
+    monkeypatch.setattr(sdb, "SETTINGS_FILE", tmp_path / "other-settings.db")
     unchanged = _controller()
     unchanged._guard_against_export(0.0, 1000.0)
     unchanged._guard_against_export(5.0, 1000.0)
@@ -128,7 +128,7 @@ def test_cover_load_defaults_off_and_persists(isolated_data):
     assert c.cover_load is False
     asyncio.run(c.configure(cover_load=True))
     assert c.cover_load is True
-    assert _controller().cover_load is True  # a new instance reads control.json
+    assert _controller().cover_load is True  # a new instance reads settings.db
 
 
 def test_cover_load_covers_the_full_pv_without_export():
@@ -239,7 +239,7 @@ def test_adaptive_gain_toggle_switches_the_effective_value_but_never_discards_th
     c = _controller()
     base = c.gain_base
     asyncio.run(c.configure(adaptive_gain=True))
-    assert _controller().adaptive_gain is True  # a new instance reads control.json
+    assert _controller().adaptive_gain is True  # a new instance reads settings.db
     c.learned_gain = base * 1.2  # simulate some learning having happened, then persist it
     c._save()
     assert c.gain == pytest.approx(base * 1.2)  # effective gain follows the learned value while on
