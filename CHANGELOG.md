@@ -11,6 +11,12 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Forma
   tagsüber nicht angewendet und die Batterie lädt nur mit echtem PV-Überschuss (bei Netzbezug des Hauses praktisch
   gar nicht). Das steht jetzt in den Hilfetexten von „Ladereserve“ und „Netzlast abdecken“, in der Regler-Statuszeile
   („Ladereserve ruht“) und im README. Verhalten unverändert.
+- Neu: Der Tages-Deckel (PV minus Ladereserve, bei „Netzlast abdecken“ PV minus Exportschutz, bei vollem Akku PV
+  minus Erhaltungsladung) wird jetzt aus dem **niedrigsten PV-Wert der letzten `CONTROL_MIN_INTERVAL`-Spanne**
+  berechnet statt aus dem aktuellen. Der Sollwert bleibt bis zum nächsten Zähler-Sample stehen, die PV schwankt aber im
+  Sekundentakt; ein Einbruch dazwischen wurde bisher vom Akku gedeckt (kurze Entlade-Ausschläge mitten in der
+  Ladephase). Nachts ohne Wirkung. Folge: bei stark schwankender PV liegt der Sollwert etwas tiefer, der Akku bekommt
+  entsprechend etwas mehr.
 
 ## [1.0.18] - 2026-09-29
 

@@ -651,6 +651,14 @@ class GridController:
             return Msg("phase.night_min", soc=_n(soc), min=_n(floor)), 0
         return Msg("phase.night_out", w=self.night_max_w, soc=_n(soc)), self.night_max_w
 
+    def _pv_floor(self, pv: float, now: float) -> float:
+        """PV the day cap is sized from: the lowest value of the last write interval, not just the latest.
+        The setpoint stays as written until the next meter sample, while the PV moves every few seconds;
+        a dip below it in between is covered by the battery, which is exactly what the day phases keep
+        it from doing. Sizing from the lowest recent value keeps the output under such dips."""
+        low = STATE.pv_min(self.min_interval_s, now)
+        return pv if low is None else min(pv, low)
+
     def _plan_cap(self, latest: dict[str, Any], now: float) -> tuple[Msg, int] | None:
         """(phase message, max output watts) for the current time/SOC/PV, or None if
         SOC or PV power are unknown (then nothing is changed)."""
@@ -660,6 +668,7 @@ class GridController:
         night = self._night_cap(soc, now)
         if night is not None:
             return night
+        pv = self._pv_floor(pv, now)
         if soc >= self.full_soc:
             self._battery_full = True
         elif soc < self.release_soc:
