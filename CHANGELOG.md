@@ -3,6 +3,23 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [1.0.18] - 2026-09-29
+
+### Bridge
+
+- Geändert: Was im UI eingestellt wird (Regler-Parameter, Schalter, gelernte Verstärkung, Ladereserve-Basis), liegt
+  jetzt in einer SQLite-Datenbank `data/settings.db` statt in `data/control.json`. Das frühere `control.json` wird
+  beim ersten Start übernommen und zu `control.json.migrated` umbenannt.
+  - Nur Abweichungen von den `.env`-/Add-on-Defaults werden gespeichert und haben Vorrang. Bisher fror der erste
+    Speichervorgang alle Parameter ein, ein später geänderter Default hatte dann auch bei nie angefassten Werten
+    keine Wirkung mehr; jetzt folgt jeder nicht geänderte Wert weiter der `.env`. Ein Wert, der wieder dem Default
+    entspricht, wird nicht mehr festgehalten.
+  - Ein einzelner nicht mehr gültiger gespeicherter Wert (z. B. nach einer verengten Grenze in einem Update) wird
+    mit Warnung übersprungen; früher wurden dadurch **alle** gespeicherten Parameter still verworfen und die
+    `.env`-Werte galten wieder.
+  - Jedes Speichern ist eine Transaktion. `control.json` wurde ohne Absicherung überschrieben; eine abgebrochene
+    Schreibung ließ eine unlesbare Datei zurück, die still als „nichts gespeichert“ galt.
+
 ## [1.0.17] - 2026-09-29
 
 ### Bridge
