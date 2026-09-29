@@ -150,6 +150,40 @@ def test_cover_load_withholds_exactly_what_the_export_guard_has_claimed():
     assert (phase.key, phase.params, cap) == ("phase.day_cover_load", {"guard": 50, "soc": 50}, 370)
 
 
+def test_cover_trickle_is_off_by_default_and_persists(isolated_data):
+    c = _controller()
+    assert c.cover_trickle is False
+    asyncio.run(c.configure(cover_load=True, cover_trickle=True))
+    assert _controller().cover_trickle is True  # a new instance reads settings.db
+
+
+def test_cover_trickle_holds_the_trickle_back_in_the_cover_load_phase_only_when_on():
+    """The PV then also covers the device's own draw instead of the battery (field report: battery a few W
+    on the discharging side with the output equal to the PV)."""
+    c = _controller()
+    c.cover_load = True
+    latest, now = _day(soc=50, pv=420)
+    assert c._plan_cap(latest, now)[1] == 420  # off: nothing held back (unchanged behaviour)
+    c.cover_trickle = True
+    assert c._plan_cap(latest, now)[1] == 420 - c.trickle_w
+    c._guard_against_export(-50.0, 1000.0)  # the export guard's claim comes on top
+    assert c._plan_cap(latest, now)[1] == 420 - 50 - c.trickle_w
+
+
+def test_cover_trickle_without_cover_load_changes_nothing():
+    c = _controller()
+    c.cover_trickle = True  # cover_load off: the normal charging phase holds the reserve back anyway
+    latest, now = _day(soc=50, pv=420)
+    assert c._plan_cap(latest, now)[1] == 420 - c.charge_reserve_w
+
+
+def test_cover_trickle_never_drives_the_cap_below_zero():
+    c = _controller()
+    c.cover_load, c.cover_trickle = True, True
+    latest, now = _day(soc=50, pv=2)  # less PV than the trickle
+    assert c._plan_cap(latest, now)[1] == 0
+
+
 def test_cover_load_does_not_change_the_night_or_battery_full_phases():
     c = _controller()
     c.cover_load = True

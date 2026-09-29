@@ -103,6 +103,10 @@ export function ControllerCard({ status, onStatus }: { status: ControlStatus; on
         <Toggle label={t("cc.coverLoad")} hint={t("cc.coverLoad.hint")} checked={status.cover_load} disabled={busy}
           tag={status.cover_load ? t("cc.badge.on") : t("cc.badge.off")} tagClass={status.cover_load ? "info" : ""}
           onChange={(v) => change({ cover_load: v })} />
+        <Toggle label={t("cc.coverTrickle")} hint={t("cc.coverTrickle.hint", { w: fmt(status.settings.CHARGE_TRICKLE_W as number, "W") })}
+          checked={status.cover_trickle} disabled={busy || !status.cover_load}
+          tag={status.cover_trickle ? t("cc.badge.on") : t("cc.badge.off")} tagClass={status.cover_trickle ? "info" : ""}
+          onChange={(v) => change({ cover_trickle: v })} />
         <Toggle label={t("cc.adaptiveGain")} hint={t("cc.adaptiveGain.hint", { gain: fmt(status.learned_gain, "", 2, true) })} checked={status.adaptive_gain} disabled={busy}
           tag={status.adaptive_gain ? t("cc.badge.on") : t("cc.badge.off")} tagClass={status.adaptive_gain ? "info" : ""}
           onChange={(v) => change({ adaptive_gain: v })} />

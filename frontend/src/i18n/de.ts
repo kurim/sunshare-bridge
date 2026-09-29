@@ -106,6 +106,8 @@ export const de = {
   "cc.plan.hint": "Tag laden, Nacht abgeben",
   "cc.coverLoad": "Netzlast abdecken",
   "cc.coverLoad.hint": "Hat Vorrang vor der Ladereserve (sie ruht dann): Netzbezug zuerst decken, der Akku lädt nur mit dem PV-Überschuss",
+  "cc.coverTrickle": "Erhaltungsladung bei Netzlast",
+  "cc.coverTrickle.hint": "Nur mit „Netzlast abdecken“: {w} (Erhaltungsladung) bleiben von der PV zurück, damit der Eigenverbrauch des Geräts nicht aus dem Akku kommt (sonst steht er oft ein paar Watt im Plus)",
   "cc.adaptiveGain": "Adaptive Regelung",
   "cc.adaptiveGain.hint": "Lernt die Verstärkung aus dem Verhalten deines Zählers (aktuell {gain})",
   "cc.badge.running": "RUNNING",

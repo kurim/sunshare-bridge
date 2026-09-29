@@ -106,6 +106,8 @@ export const en: Messages = {
   "cc.plan.hint": "Charge by day, discharge at night",
   "cc.coverLoad": "Cover grid load",
   "cc.coverLoad.hint": "Takes precedence over the charge reserve (which then rests): cover grid draw first, the battery only charges from the PV surplus",
+  "cc.coverTrickle": "Trickle charge with grid load",
+  "cc.coverTrickle.hint": "Only with “Cover grid load”: {w} (trickle charge) stay back from the PV so the device's own draw does not come out of the battery (which otherwise often sits a few watts on the discharging side)",
   "cc.adaptiveGain": "Adaptive control",
   "cc.adaptiveGain.hint": "Learns the gain from how your meter actually behaves (currently {gain})",
   "cc.badge.running": "RUNNING",

@@ -138,8 +138,9 @@ def make_ui_app(
             data = await request.json()
             enabled, dry_run, plan = data.get("enabled"), data.get("dry_run"), data.get("plan")
             cover_load, adaptive_gain = data.get("cover_load"), data.get("adaptive_gain")
-            if not all(isinstance(v, bool) or v is None for v in (enabled, dry_run, plan, cover_load, adaptive_gain)):
-                raise ValueError("enabled/dry_run/plan/cover_load/adaptive_gain must be booleans")
+            cover_trickle = data.get("cover_trickle")
+            if not all(isinstance(v, bool) or v is None for v in (enabled, dry_run, plan, cover_load, adaptive_gain, cover_trickle)):
+                raise ValueError("enabled/dry_run/plan/cover_load/cover_trickle/adaptive_gain must be booleans")
             settings = data.get("settings")
             if settings is not None and not isinstance(settings, dict):
                 raise ValueError("settings must be an object")
@@ -148,7 +149,7 @@ def make_ui_app(
                 raise ValueError("device must be an object")
             await controller.configure(
                 enabled=enabled, dry_run=dry_run, plan=plan, cover_load=cover_load,
-                adaptive_gain=adaptive_gain, settings=settings, device=device,
+                adaptive_gain=adaptive_gain, cover_trickle=cover_trickle, settings=settings, device=device,
             )
         except (ValueError, json.JSONDecodeError) as err:
             body = {"error": str(err)}

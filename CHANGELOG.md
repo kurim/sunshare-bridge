@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [1.1.4] - 2026-09-29
+
+### Bridge
+
+- Neu: Schalter „Erhaltungsladung bei Netzlast“ (Regler-Tab, **aus** per Default, wirkt nur zusammen mit „Netzlast
+  abdecken“). Ist er an, bleibt `CHARGE_TRICKLE_W` (Default 5 W) auch in dieser Phase von der PV zurück: Deckel = PV −
+  Exportschutz − Erhaltungsladung. Ohne den Schalter gilt der Deckel = PV, und der Ausgang gleicht der PV; der
+  Eigenverbrauch des Geräts (Standby, Wandlungsverluste) kommt dann aus dem Akku, der ein paar Watt im Plus steht.
+  Kostet das Haus etwa so viel Netzbezug, wie eingestellt ist. Das Verhalten ohne Schalter bleibt unverändert.
+
 ## [1.1.3] - 2026-09-29
 
 ### Bridge

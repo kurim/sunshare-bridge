@@ -78,6 +78,7 @@ export interface ControlStatus {
   cloud_login: CloudLogin | null;
   plan: boolean;
   cover_load: boolean;
+  cover_trickle: boolean;
   adaptive_gain: boolean;
   /** Effective gain the control loop applies right now (learned_gain while on, else the configured base). */
   gain: number;
@@ -115,6 +116,7 @@ export interface ControlUpdate {
   dry_run?: boolean;
   plan?: boolean;
   cover_load?: boolean;
+  cover_trickle?: boolean;
   adaptive_gain?: boolean;
   settings?: Settings;
   device?: { COUNTRY_MAX_POWER: number };
