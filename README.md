@@ -120,7 +120,10 @@ git push origin v1.0.0
 Das baut zusätzlich `ghcr.io/kurim/sunshare-bridge:v1.0.0` (fest) und `ghcr.io/kurim/sunshare-bridge:stable` (zeigt
 immer auf das jeweils neueste Release-Tag, nie auf `main`). `docker-compose.yml` verwendet standardmäßig `:latest`
 (aktueller `main`-Stand); für einen ruhigeren Update-Rhythmus stattdessen `image: ghcr.io/kurim/sunshare-bridge:stable`
-eintragen, oder mit `build: .` weiter lokal aus dem Quellcode bauen. Nach einem Tag/neuen Release das Image ziehen:
+eintragen, oder mit `build: .` weiter lokal aus dem Quellcode bauen. Außerdem legt CI für den Tag ein GitHub-Release an,
+dessen Text der passende Abschnitt `## [X.Y.Z]` aus [`CHANGELOG.md`](CHANGELOG.md) ist (fehlt der Abschnitt, schlägt der
+Schritt fehl – also den Changelog-Eintrag vor dem Taggen anlegen; ein schon in der GitHub-Oberfläche angelegtes Release
+bekommt nur den Text ersetzt). Nach einem Tag/neuen Release das Image ziehen:
 
 ```bash
 docker compose pull && docker compose up -d
