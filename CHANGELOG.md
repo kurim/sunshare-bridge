@@ -3,6 +3,35 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [1.0.17] - 2026-09-29
+
+### Bridge
+
+- Fix: Der Failsafe (Zähler meldet nichts mehr) lief nur ein einziges Mal pro Ausfall. Fiel der Zähler abends aus –
+  noch in der Tagphase, ohne PV, Deckel 0 W –, blieb der Ausgang auf 0 W, auch als um 23:00 das Nachtfenster begann,
+  in dem `CONTROL_FALLBACK_W` (bis `NIGHT_MAX_W`) erlaubt gewesen wäre; umgekehrt hätte ein Nachtwert in den Morgen
+  hineingewirkt. Der Failsafe wird jetzt alle `CONTROL_METER_MAX_AGE` neu berechnet, solange der Zähler fehlt, und
+  schreibt nur, wenn sich der Zielwert ändert (ein fehlgeschlagener Schreibzugriff wird beim nächsten Durchlauf
+  wiederholt; Wiederholungen nie schneller als `CONTROL_MIN_INTERVAL`).
+- Neu: Der Regler liest den Ausgangs-Sollwert des Geräts alle 5 Minuten zurück und übernimmt eine Abweichung
+  (z. B. eine manuelle Änderung in der offiziellen App). Bisher kannte er nur, was er selbst geschrieben hatte:
+  Errechnete er danach denselben Wert wie vorher, hielt er ihn für unverändert und ließ das Gerät auf dem App-Wert.
+  Nicht im Trockenlauf und nicht in den ersten 2 Minuten nach einem eigenen Schreibzugriff (das Gerät zeigt den
+  neuen Wert evtl. noch verzögert); der Failsafe setzt seinen Zielwert nach einer Änderung von außen erneut.
+- Fix (#26): Der Regler blieb bei „ok: Wechselrichter am Limit“ dauerhaft hängen. Lieferte der Wechselrichter weniger
+  als befohlen, galt das für immer als PV-/Akku-Grenze – auch wenn das Gerät aus einem anderen Grund nichts abgab
+  und das Haus stundenlang Netzstrom zog; nur Trockenlauf an/aus (schreibt den alten Wert neu) half. Die Annahme
+  gilt jetzt nur noch 5 Minuten; danach wird der Sollwert – aus der tatsächlichen Abgabe neu berechnet – erneut
+  gesendet (auch wenn er gleich bleibt) und die Wartezeit beginnt von vorn. Eine echte Grenze kostet so höchstens
+  einen Schreibzugriff alle 5 Minuten; die adaptive Regelung lernt aus diesem erneuten Senden nicht.
+- Neu (#26): Ist ein „Limit“ unwahrscheinlich – der Akku liegt über dem Entladestopp (20 % + 3), lädt nicht (> 20 W)
+  und die PV deckt den Sollwert nicht allein, oder die PV reicht allein –, wartet der Regler nur 2 statt 5 Minuten
+  (Status „wartet: Wechselrichter liefert … obwohl PV/Akku mehr hergeben könnten“). Fehlen SOC/PV/Akku-Werte,
+  bleibt es bei 5 Minuten.
+- Neu (#26): Der Sollwert des Reglers wird im Verlauf mitgeschrieben (Spalte `setpointW` in `history.db`, ältere
+  Datenbanken werden automatisch ergänzt) und als Kurve „Sollwert“ im Leistungs-Chart angezeigt – nur solange der
+  Regler aktiv ist und nicht im Trockenlauf. Eine dauerhafte Lücke zur WR-Abgabe macht solche Fälle nachvollziehbar.
+
 ## [1.0.16] - 2026-09-28
 
 ### Bridge

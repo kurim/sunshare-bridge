@@ -44,7 +44,7 @@ _LOGGER = logging.getLogger("sunshare.main")
 
 # Keys the charts need from each raw reading; the full readings (~30 fields) are only
 # needed for the newest one, which arrives over the SSE stream anyway.
-CHART_KEYS = ("_t", "pvPow", "pvPreal", "invPow", "batPow", "batPreal", "loadPow", "offGridPow", "exportPow", "gridPow", "meterPow", "soc")
+CHART_KEYS = ("_t", "pvPow", "pvPreal", "invPow", "batPow", "batPreal", "loadPow", "offGridPow", "exportPow", "gridPow", "meterPow", "soc", "setpointW")
 
 
 # The pre-React UI lived at these addresses; they lead to the same pages of the React app now

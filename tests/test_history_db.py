@@ -19,6 +19,17 @@ def test_readings_within_a_minute_are_averaged(tmp_path):
     assert row["_t"] == t and row["pvPow"] == 150 and row["soc"] == 21
 
 
+def test_the_commanded_output_is_stored_next_to_what_the_inverter_delivers(tmp_path):
+    """Issue #26: a lasting gap between setpoint and invPow has to be visible afterwards."""
+    db = _db(tmp_path)
+    t = int(time.time()) // 60 * 60 - 600
+    db.add(t + 5, {"invPow": 0, "setpointW": 16})
+    db.add(t + 35, {"invPow": 0, "setpointW": 64})
+    db.add(t + 65, {"pvPow": 1})
+    row = db.query(60)["rows"][0]
+    assert row["invPow"] == 0 and row["setpointW"] == 40
+
+
 def test_long_ranges_are_bucketed(tmp_path):
     db = _db(tmp_path)
     now = time.time()

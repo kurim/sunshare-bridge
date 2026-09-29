@@ -37,6 +37,12 @@ CONTROL_FILE = Path("/data/control.json")
 INV_MAX_AGE_S = 120  # inverter reading older than this is not trusted as the control base
 EXPORT_GUARD_DECAY_INTERVAL_S = 600  # how rarely the export guard's charge-reserve raise may step back down
 EXPORT_GUARD_DECAY_STEP_W = 10  # ... and by how little each time, so it settles rather than hunts
+LIMIT_RECHECK_S = 300  # how long "inverter delivers less than commanded" is trusted before the setpoint is re-sent
+LIMIT_UNEXPLAINED_S = 120  # ... when nothing in PV/battery explains it (see _limit_plausible): just a device-lag grace
+LIMIT_CHARGING_W = 20  # battery charging harder than this counts as "the device serves the battery first"
+LIMIT_SOC_MARGIN = 3  # % above the discharge stop from which the battery could supply the setpoint
+DEVICE_SYNC_INTERVAL_S = 300  # how often the device's own output setpoint is read back (see _resync_setpoint)
+DEVICE_SYNC_SETTLE_S = 120  # ... and how long after a write of ours it may still be taking effect
 
 # Adaptive CONTROL_GAIN (see _adapt_gain): bounded so a bad run can't wind gain up to something that
 # oscillates the real device output, or down to something that never converges. Grow slowly, shrink
@@ -224,18 +230,36 @@ class GridController:
 
         self.meter_w: float | None = None
         self.meter_t: float | None = None
-        self.setpoint: int | None = None
+        self._setpoint: int | None = None
+        self.setpoint = None  # property: mirrors into STATE for the history (see _sync_state_setpoint)
         self.strategy_type = 1
         self.last_action: Msg | None = None
         self._last_write_t = 0.0
         self._last_export_guard_t = 0.0
         self._failsafe_active = False
+        self._failsafe_w: int | None = None  # last failsafe target that actually went out
+        self._last_sync_t = 0.0
+        self._limit_since: float | None = None  # since when the loop has been holding back for a supposed limit
         self._mqtt_connected = False
         self._config_seen = False
         self._last_payload: str | None = None  # raw text of the last message on the state topic
         self._new_meter = asyncio.Event()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._mqtt: mqtt.Client | None = None
+
+    @property
+    def setpoint(self) -> int | None:
+        return self._setpoint
+
+    @setpoint.setter
+    def setpoint(self, value: int | None) -> None:
+        self._setpoint = value
+        self._sync_state_setpoint()
+
+    def _sync_state_setpoint(self) -> None:
+        """The output the bridge is holding, for the live/long-term charts - only while it actually
+        steers the device (a stale value from a disabled or dry-run controller would mislead)."""
+        STATE.setpoint_w = self._setpoint if self.enabled and not self.dry_run else None
 
     @property
     def gain(self) -> float:
@@ -465,6 +489,7 @@ class GridController:
             self.cover_load = cover_load
         if adaptive_gain is not None:
             self.adaptive_gain = adaptive_gain  # learned_gain is untouched: it survives the toggle
+        self._sync_state_setpoint()  # enabled / dry_run may just have changed
         if was_active and not (self.enabled and not self.dry_run) and self.restore_w is not None:
             ok = await self._client.set_output_power(self.restore_w, self.strategy_type)
             self.last_action = (
@@ -531,6 +556,7 @@ class GridController:
         self.meter_t = t
         STATE.meter_w, STATE.meter_t = value, t
         self._failsafe_active = False
+        self._failsafe_w = None
         self._new_meter.set()
 
     # ---- control loop -----------------------------------------------------
@@ -682,6 +708,7 @@ class GridController:
             return
         now = time.time()
         self._guard_against_export(self.meter_w, now)
+        await self._resync_setpoint(now)
 
         if self.setpoint is None:
             settings = await self._client.read_ems_settings()
@@ -714,15 +741,34 @@ class GridController:
         # the write-rate limit below - waiting out the interval here would keep over-charging or
         # exporting until it happens to elapse.
         over_cap = self.setpoint > cap and (cap == 0 or self.setpoint > cap + self.deadband_w)
-        if not over_cap:
+        recheck = False
+        if over_cap:
+            self._limit_since = None
+        else:
             if abs(error) <= self.deadband_w:
+                self._limit_since = None
                 self.last_action = Msg("act.ok_deadband", "ok", meter=round(self.meter_w))
                 return
-            # Needs more, but the inverter already delivers less than commanded
-            # (PV/battery-limited): raising the setpoint would only wind up.
+            # Needs more, but the inverter already delivers less than commanded (PV/battery-limited):
+            # raising the setpoint would only wind up. That is a guess, though - the device may deliver
+            # nothing for a reason that has nothing to do with its supply (and only takes up the value
+            # again once it is written anew), while the house keeps drawing from the grid. So it only
+            # holds for LIMIT_RECHECK_S (only LIMIT_UNEXPLAINED_S if PV/battery could supply more, see
+            # _limit_plausible); after that the setpoint is re-sent (recomputed from what the inverter
+            # really delivers) and the wait starts over.
             if error > 0 and inv < self.setpoint - self.deadband_w:
-                self.last_action = Msg("act.ok_limit", "ok", meter=round(self.meter_w), inv=round(inv))
-                return
+                plausible = self._limit_plausible(latest)
+                if self._limit_since is None:
+                    self._limit_since = now
+                if now - self._limit_since < (LIMIT_RECHECK_S if plausible else LIMIT_UNEXPLAINED_S):
+                    self.last_action = (
+                        Msg("act.ok_limit", "ok", meter=round(self.meter_w), inv=round(inv)) if plausible
+                        else Msg("act.wait_output", "warn", inv=round(inv), w=self.setpoint)
+                    )
+                    return
+                recheck = True
+            else:
+                self._limit_since = None
             # Only now, once a correction is actually due, does the write-rate limit apply - checking
             # it any earlier (e.g. before the deadband/limit checks above) would report "skipped:
             # minimum interval" even while already converged, which is misleading: nothing was ever
@@ -731,22 +777,64 @@ class GridController:
                 self.last_action = Msg("act.skip_interval", "warn")
                 return
 
-        if self.adaptive_gain:
-            self._adapt_gain(error)
-        self._prev_error = error
+        if recheck:
+            self._limit_since = now  # re-arm: the next test comes after another full LIMIT_RECHECK_S
+            self._prev_error = None  # a re-send is not a correction whose effect could be graded
+        else:
+            if self.adaptive_gain:
+                self._adapt_gain(error)
+            self._prev_error = error
 
         new = round(min(max(inv + self.gain * error, self.min_w), cap))
-        if new == self.setpoint:
+        if new == self.setpoint and not recheck:
             self.last_action = Msg("act.ok_unchanged", "ok", w=new)
             return
         await self._apply(new, Msg("why.control", meter=round(self.meter_w), inv=round(inv), cap=cap))
 
-    async def _apply(self, watts: int, why: Msg) -> None:
+    def _limit_plausible(self, latest: dict[str, Any]) -> bool:
+        """Could the supply explain an inverter that delivers less than commanded? Yes if the battery is
+        charging (the device serves it first), or neither the PV covers the setpoint nor the battery has
+        energy above its discharge stop. If PV or battery could supply it and the device still delivers
+        less, the "limit" is more likely something else (a setpoint the device has not taken up) - the
+        loop then waits only a short grace instead of LIMIT_RECHECK_S. Unknown values count as plausible."""
+        soc, pv, bat = latest.get("soc"), latest.get("pvPow"), latest.get("batPow")
+        if soc is None or pv is None or bat is None or self.setpoint is None:
+            return True
+        if bat < -LIMIT_CHARGING_W:
+            return True
+        floor = (self.device_limits or {}).get("soc_min")
+        if floor is None:
+            floor = DEVICE_SOC_MIN_MAX
+        could_supply = pv >= self.setpoint - self.deadband_w or soc > float(floor) + LIMIT_SOC_MARGIN
+        return not could_supply
+
+    async def _resync_setpoint(self, now: float) -> None:
+        """The bridge only knows the output it wrote itself; a change made elsewhere (the official app)
+        would otherwise go unnoticed - e.g. the loop computing the same value again would see "unchanged"
+        and leave the device on the other one. So every DEVICE_SYNC_INTERVAL_S the device's own setpoint is
+        read back and adopted when it differs; the next step then works from what the device really has
+        (and the failsafe re-asserts its own target). Skipped in dry-run (nothing is ever written, so
+        there is nothing to keep in step) and while a write of ours may still be taking effect."""
+        if self.dry_run or self.setpoint is None:
+            return
+        if now - self._last_sync_t < DEVICE_SYNC_INTERVAL_S or now - self._last_write_t < DEVICE_SYNC_SETTLE_S:
+            return
+        self._last_sync_t = now
+        settings = await self._client.read_ems_settings()
+        actual = ((settings or {}).get("mesSettingUpdatePojo") or {}).get("permPower")
+        if actual is None or int(actual) == self.setpoint:
+            return
+        _LOGGER.info("Device output is %s W, not the %s W last set here (changed elsewhere?) - adopting it", actual, self.setpoint)
+        self.setpoint = int(actual)
+        self._failsafe_w = None
+
+    async def _apply(self, watts: int, why: Msg) -> bool:
+        """True if the value went out (or, in dry-run, would have)."""
         if self.dry_run:
             self.last_action = Msg("act.dry_run", "warn", w=watts, why=why)
             _LOGGER.info("%s", self.last_action)
             self._last_write_t = time.time()
-            return
+            return True
         ok = await self._client.set_output_power(watts, self.strategy_type)
         self._last_write_t = time.time()
         if ok:
@@ -755,10 +843,15 @@ class GridController:
         else:
             self.last_action = Msg("act.set_failed", "error", w=watts, why=why)
         _LOGGER.info("%s", self.last_action)
+        return ok
 
     async def _failsafe(self) -> None:
-        """No meter sample for `meter_max_age_s`: drive to a safe output once. `fallback_w` (UI-editable,
-        default 0) is the ceiling for it, but only ever a ceiling - with the battery plan on, it is
+        """No meter sample for `meter_max_age_s`: drive to a safe output. Runs again every
+        `meter_max_age_s` for as long as the meter stays away (see `run`), so the value follows the plan
+        as it changes - the evening's 0 W (no PV, still day) must not stick through the night window, and
+        the night's value must not stick into the morning - but only writes when the target actually
+        differs from the last one that went out (a failed write is retried on the next round).
+        `fallback_w` (UI-editable, default 0) is the ceiling for it, but only ever a ceiling - with the battery plan on, it is
         additionally capped by the exact same phase logic the closed loop uses (`_plan_cap`, from the
         last known SOC/PV - independent of the meter, so still fresh): during the day charging phase or
         once full that means never drawing more from the battery than PV actually covers, at night the
@@ -766,18 +859,27 @@ class GridController:
         needs, not a guarantee that PV/grid cover it - the plan's reserve exists precisely so a blind
         fallback can't eat into it. If the plan is on but even the last known SOC/PV is missing, there is
         nothing to size a safe cap from, so it defaults to 0 rather than trusting the raw fallback."""
-        if not self.enabled or self._failsafe_active:
+        if not self.enabled:
             return
-        self._failsafe_active = True
-        _LOGGER.warning(
-            "No meter sample for %.0fs: mqtt_connected=%s config_seen=%s state_topic=%s value_path=%s",
-            self.meter_max_age_s, self._mqtt_connected, self._config_seen, self.state_topic, self.value_path,
-        )
+        now = time.time()
+        await self._resync_setpoint(now)
+        first = not self._failsafe_active
+        if not first and now - self._last_write_t < self.min_interval_s:
+            return  # a short CONTROL_METER_MAX_AGE must not turn the re-check into a write storm
+        if first:
+            self._failsafe_active = True
+            _LOGGER.warning(
+                "No meter sample for %.0fs: mqtt_connected=%s config_seen=%s state_topic=%s value_path=%s",
+                self.meter_max_age_s, self._mqtt_connected, self._config_seen, self.state_topic, self.value_path,
+            )
         watts = self.fallback_w
         if self.plan_enabled:
-            cap = self._plan_cap(STATE.latest or {}, time.time())
+            cap = self._plan_cap(STATE.latest or {}, now)
             if cap is not None:
                 self.phase, watts = cap[0], min(watts, cap[1])
             else:
                 watts = 0
-        await self._apply(watts, Msg("why.failsafe"))
+        if watts == self._failsafe_w:
+            return
+        if await self._apply(watts, Msg("why.failsafe")):
+            self._failsafe_w = watts

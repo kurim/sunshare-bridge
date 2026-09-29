@@ -7,7 +7,7 @@ import { useT, type Key, type Translate } from "./i18n";
 import { smooth } from "./lib";
 import { useLiveData } from "./live";
 
-const POWER_KEYS = ["pv", "inv", "bat", "socket", "export"] as const;
+const POWER_KEYS = ["pv", "inv", "bat", "socket", "export", "setpoint"] as const;
 type PowerKey = (typeof POWER_KEYS)[number];
 
 /** One entry per line in the power chart; `pkey` is what the on/off legend and its localStorage
@@ -20,6 +20,8 @@ const POWER_DEFS: { pkey: PowerKey; key: keyof Reading; fallback?: keyof Reading
   { pkey: "bat", key: "batPreal", fallback: "batPow", label: "fl.s.bat", color: "var(--c-bat)", width: 1.5 },
   { pkey: "socket", key: "offGridPow", label: "fl.s.socket", color: "var(--c-socket)", width: 1.5, lanOnly: true },
   { pkey: "export", key: "exportPow", label: "fl.s.export", color: "var(--c-export)", width: 1.5, lanOnly: true },
+  // What the controller commanded, against what the inverter delivers (WR): a lasting gap is the tell.
+  { pkey: "setpoint", key: "setpointW", label: "fl.s.setpoint", color: "var(--c-setpoint)", width: 1.25 },
 ];
 const meterSeries = (t: Translate): Series[] => [{ key: "meterPow", label: t("fl.s.meter"), color: "var(--c-grid)", width: 1.75 }];
 const socSeries = (t: Translate): Series[] => [{ key: "soc", label: t("fl.s.soc"), color: "var(--c-soc)", width: 1.75 }];

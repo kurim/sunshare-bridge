@@ -450,6 +450,95 @@ def test_failsafe_uses_the_fallback_as_is_when_it_is_within_the_night_cap(monkey
     assert c.setpoint == 50
 
 
+class RecordingClient(FakeClient):
+    """Remembers every output written, and reports the device's setpoint like the real one would: the
+    last thing written - unless `device_output` says somebody else (the app) changed it."""
+
+    def __init__(self, guest=True):
+        super().__init__(guest)
+        self.outputs = []
+        self.reads = 0
+        self.device_output = None
+
+    async def read_ems_settings(self):
+        self.reads += 1
+        shown = self.device_output if self.device_output is not None else (self.outputs[-1] if self.outputs else 100)
+        return {"mesSettingUpdatePojo": {"permPower": shown, "emsStrategyType": 1}, "emsModeAdvan": dict(self.adv)}
+
+    async def set_output_power(self, watts, ems_strategy_type=1):
+        self.outputs.append(watts)
+        self.device_output = None
+        return self.ok
+
+
+def test_failsafe_follows_the_plan_from_the_evening_into_the_night(monkeypatch):
+    """Regression: the failsafe ran once per outage. A meter that dropped out at dusk (day phase, no
+    PV -> cap 0) left the output at 0 W for the whole night, although the night window would have
+    allowed CONTROL_FALLBACK_W (up to NIGHT_MAX_W) - it must be re-evaluated while the meter is away."""
+    client = RecordingClient()
+    c = _ctl(client)
+    asyncio.run(c.configure(enabled=True, dry_run=False, settings={"CONTROL_FALLBACK_W": 210, "NIGHT_MAX_W": 200}))
+    latest, dusk = _day(soc=40, pv=0)
+    monkeypatch.setattr(st.STATE, "latest", latest)
+    with mock.patch("time.time", return_value=dusk):
+        asyncio.run(c._failsafe())
+    assert client.outputs == [0]
+
+    _, night = _night(soc=40)
+    night += 24 * 3600  # 02:00 of the following day
+    with mock.patch("time.time", return_value=night):
+        asyncio.run(c._failsafe())
+    assert client.outputs == [0, 200] and c.setpoint == 200  # min(fallback 210, NIGHT_MAX_W 200)
+
+
+def test_failsafe_only_writes_when_the_target_changes(monkeypatch):
+    client = RecordingClient()
+    c = _ctl(client)
+    asyncio.run(c.configure(enabled=True, dry_run=False, settings={"CONTROL_FALLBACK_W": 100}))
+    latest, now = _night(soc=80)
+    monkeypatch.setattr(st.STATE, "latest", latest)
+    for step in range(3):
+        with mock.patch("time.time", return_value=now + step * 600):
+            asyncio.run(c._failsafe())
+    assert client.outputs == [100]  # later rounds found nothing new to send
+
+
+def test_failsafe_retries_a_failed_write_on_the_next_round(monkeypatch):
+    client = RecordingClient()
+    client.ok = False
+    c = _ctl(client)
+    asyncio.run(c.configure(enabled=True, dry_run=False, settings={"CONTROL_FALLBACK_W": 100}))
+    latest, now = _night(soc=80)
+    monkeypatch.setattr(st.STATE, "latest", latest)
+    with mock.patch("time.time", return_value=now):
+        asyncio.run(c._failsafe())
+    assert c.last_action.key == "act.set_failed"
+    client.ok = True
+    with mock.patch("time.time", return_value=now + 600):
+        asyncio.run(c._failsafe())
+    assert client.outputs == [100, 100] and c.last_action.key == "act.set"
+
+
+def test_failsafe_recheck_respects_the_write_rate_limit(monkeypatch):
+    """A very short CONTROL_METER_MAX_AGE re-runs the failsafe every few seconds - repeat rounds must
+    not write faster than CONTROL_MIN_INTERVAL even when PV keeps moving the day cap."""
+    client = RecordingClient()
+    c = _ctl(client)
+    asyncio.run(c.configure(enabled=True, dry_run=False, settings={"CONTROL_FALLBACK_W": 500}))
+    latest, now = _day(soc=50, pv=420)
+    monkeypatch.setattr(st.STATE, "latest", latest)
+    with mock.patch("time.time", return_value=now):
+        asyncio.run(c._failsafe())
+    first = list(client.outputs)
+    monkeypatch.setattr(st.STATE, "latest", {"soc": 50, "pvPow": 480})
+    with mock.patch("time.time", return_value=now + 10):  # inside min_interval_s (60 s default)
+        asyncio.run(c._failsafe())
+    assert client.outputs == first
+    with mock.patch("time.time", return_value=now + 70):
+        asyncio.run(c._failsafe())
+    assert len(client.outputs) == len(first) + 1
+
+
 def test_failsafe_ignores_the_plan_cap_when_the_plan_is_disabled(monkeypatch):
     client = FakeClient(guest=True)
     c = _ctl(client)
@@ -484,12 +573,210 @@ def test_step_pulls_an_over_cap_setpoint_down_at_once_despite_the_rate_limit(mon
     c = _ctl(client)
     asyncio.run(c.configure(enabled=True, dry_run=False))  # plan stays on; setpoint fetched as 100
     c.meter_w = c.target_w  # error == 0: only the cap, not the meter error, should drive this
-    c._last_write_t = time.time()  # inside min_interval_s
+    _, noon = _day(soc=96, pv=20)  # a fixed daytime: the real clock may sit inside the night window
+    c._last_write_t = noon  # inside min_interval_s
     # soc >= CHARGE_FULL_SOC (95 by default) -> phase.day_full, cap = pv - trickle (20 - 5 = 15), well
     # below setpoint (100)
-    monkeypatch.setattr(st.STATE, "latest", {"soc": 96, "pvPow": 20, "invPow": 90, "_power_t": time.time()})
-    asyncio.run(c._step())
+    monkeypatch.setattr(st.STATE, "latest", {"soc": 96, "pvPow": 20, "invPow": 90, "_power_t": noon})
+    with mock.patch("time.time", return_value=noon):
+        asyncio.run(c._step())
     assert c.setpoint == 15 and c.last_action.key == "act.set"
+
+
+# ---- an output changed outside the bridge (the official app) ----------------------------
+
+def _live_step_controller(client, monkeypatch, now):
+    c = _ctl(client)
+    asyncio.run(c.configure(enabled=True, dry_run=False, plan=False))  # setpoint 100 read from the device
+    c.meter_w = c.target_w  # inside the deadband: _step itself writes nothing
+    monkeypatch.setattr(st.STATE, "latest", {"invPow": 100, "_power_t": now})
+    return c
+
+
+def test_step_adopts_an_output_changed_outside_the_bridge(monkeypatch):
+    """The loop only knew what it wrote itself: a value set in the app went unnoticed, and computing the
+    same target again read as "unchanged", leaving the device on the app's value."""
+    client = RecordingClient()
+    now = time.time()
+    c = _live_step_controller(client, monkeypatch, now)
+    client.device_output = 210
+    asyncio.run(c._step())
+    assert c.setpoint == 210 and client.reads == 2  # once when enabling, once for the read-back
+
+
+def test_readback_leaves_a_matching_device_value_alone_and_is_rate_limited(monkeypatch):
+    client = RecordingClient()
+    now = time.time()
+    c = _live_step_controller(client, monkeypatch, now)
+    reads_before = client.reads
+    with mock.patch("time.time", return_value=now):
+        asyncio.run(c._step())
+        asyncio.run(c._step())
+    assert client.reads == reads_before + 1 and c.setpoint == 100  # second call is inside the interval
+    with mock.patch("time.time", return_value=now + 301):
+        monkeypatch.setattr(st.STATE, "latest", {"invPow": 100, "_power_t": now + 301})
+        asyncio.run(c._step())
+    assert client.reads == reads_before + 2
+
+
+def test_readback_waits_while_our_own_write_may_still_be_taking_effect(monkeypatch):
+    client = RecordingClient()
+    now = time.time()
+    c = _live_step_controller(client, monkeypatch, now)
+    reads_before = client.reads
+    c._last_write_t = now - 10  # just wrote: the device may still show the old value
+    client.device_output = 999
+    asyncio.run(c._step())
+    assert client.reads == reads_before and c.setpoint == 100
+
+
+def test_readback_is_skipped_in_dry_run():
+    client = RecordingClient()
+    c = _ctl(client)  # dry run is the default: nothing is ever written, nothing to keep in step
+    c.setpoint = 100
+    asyncio.run(c._resync_setpoint(time.time()))
+    assert client.reads == 0
+
+
+def test_failsafe_reasserts_its_target_after_an_outside_change(monkeypatch):
+    client = RecordingClient()
+    c = _ctl(client)
+    asyncio.run(c.configure(enabled=True, dry_run=False, settings={"CONTROL_FALLBACK_W": 100}))
+    latest, now = _night(soc=80)
+    monkeypatch.setattr(st.STATE, "latest", latest)
+    with mock.patch("time.time", return_value=now):
+        asyncio.run(c._failsafe())
+    assert client.outputs == [100]
+    client.device_output = 210  # changed in the app while the meter is away
+    with mock.patch("time.time", return_value=now + 600):
+        asyncio.run(c._failsafe())
+    assert client.outputs == [100, 100]  # unchanged target, but the device no longer had it
+
+
+# ---- "inverter at its limit" must not hold forever (issue #26) -----------------------------
+
+def _stuck_controller(client, monkeypatch, now):
+    """The issue's rebuild: plan off, deadband 10, setpoint 16 W, the device delivers 0 W, the grid 112 W."""
+    monkeypatch.setenv("CONTROL_DEADBAND_W", "10")
+    c = _ctl(client)
+    asyncio.run(c.configure(enabled=True, dry_run=False, plan=False))
+    c.setpoint = 16
+    client.device_output = 16
+    c.meter_w = 112.0
+    return c
+
+
+def _step_at(c, monkeypatch, t, inv=0, **supply):
+    monkeypatch.setattr(st.STATE, "latest", {"invPow": inv, "_power_t": t, **supply})
+    with mock.patch("time.time", return_value=t):
+        asyncio.run(c._step())
+
+
+def test_a_supposed_limit_is_retested_instead_of_holding_forever(monkeypatch):
+    """Regression (issue #26): "inverter delivers less than commanded" was trusted for good - if the
+    device delivered nothing for another reason, the loop never wrote again while the house drew from
+    the grid for hours (only toggling the dry-run, which re-sends the old value, got it out)."""
+    from app.grid_control import LIMIT_RECHECK_S
+
+    client = RecordingClient()
+    t0 = 1_000_000.0
+    c = _stuck_controller(client, monkeypatch, t0)
+    _step_at(c, monkeypatch, t0)
+    assert c.last_action.key == "act.ok_limit" and client.outputs == []
+    _step_at(c, monkeypatch, t0 + LIMIT_RECHECK_S - 10)
+    assert c.last_action.key == "act.ok_limit" and client.outputs == []  # still trusted inside the window
+
+    _step_at(c, monkeypatch, t0 + LIMIT_RECHECK_S)
+    assert client.outputs == [64] and c.setpoint == 64  # 0 W delivered + 0.7 * (112 - 20 W target)
+
+    _step_at(c, monkeypatch, t0 + LIMIT_RECHECK_S + 30)  # the wait starts over after the re-send
+    assert c.last_action.key == "act.ok_limit" and client.outputs == [64]
+    _step_at(c, monkeypatch, t0 + 2 * LIMIT_RECHECK_S)
+    assert client.outputs == [64, 64]  # same value, but re-sent: the device may need it written anew
+
+
+def test_a_retest_does_not_train_the_adaptive_gain(monkeypatch):
+    from app.grid_control import LIMIT_RECHECK_S
+
+    client = RecordingClient()
+    t0 = 1_000_000.0
+    c = _stuck_controller(client, monkeypatch, t0)
+    c.adaptive_gain = True
+    gain = c.learned_gain
+    for k in range(4):
+        _step_at(c, monkeypatch, t0 + k * LIMIT_RECHECK_S)
+    assert len(client.outputs) >= 2 and c.learned_gain == gain  # a re-send is no correction to grade
+
+
+def test_a_real_limit_that_ends_resets_the_wait(monkeypatch):
+    from app.grid_control import LIMIT_RECHECK_S
+
+    client = RecordingClient()
+    t0 = 1_000_000.0
+    c = _stuck_controller(client, monkeypatch, t0)
+    _step_at(c, monkeypatch, t0)
+    assert c._limit_since == t0
+    _step_at(c, monkeypatch, t0 + LIMIT_RECHECK_S - 10, inv=16)  # the inverter delivers again
+    assert c._limit_since is None
+
+
+def test_an_unexplained_shortfall_is_retested_after_a_short_grace_only(monkeypatch):
+    """Battery well above its discharge stop and not charging, yet the inverter delivers 0 W of a
+    16 W setpoint while the grid supplies the house: the supply can't be the reason (issue #26)."""
+    from app.grid_control import LIMIT_UNEXPLAINED_S
+
+    client = RecordingClient()
+    t0 = 1_000_000.0
+    c = _stuck_controller(client, monkeypatch, t0)
+    full_but_silent = {"soc": 98, "pvPow": 0, "batPow": 0}
+    _step_at(c, monkeypatch, t0, **full_but_silent)
+    assert c.last_action.key == "act.wait_output" and c.last_action.level == "warn"
+    assert c.last_action.params == {"inv": 0, "w": 16}
+    _step_at(c, monkeypatch, t0 + LIMIT_UNEXPLAINED_S - 10, **full_but_silent)
+    assert client.outputs == []
+    _step_at(c, monkeypatch, t0 + LIMIT_UNEXPLAINED_S, **full_but_silent)
+    assert client.outputs == [64]
+
+
+def test_a_shortfall_while_the_battery_charges_still_counts_as_a_limit(monkeypatch):
+    from app.grid_control import LIMIT_UNEXPLAINED_S
+
+    client = RecordingClient()
+    t0 = 1_000_000.0
+    c = _stuck_controller(client, monkeypatch, t0)
+    charging = {"soc": 40, "pvPow": 300, "batPow": -280}  # the device serves the battery first
+    _step_at(c, monkeypatch, t0, **charging)
+    _step_at(c, monkeypatch, t0 + LIMIT_UNEXPLAINED_S + 30, **charging)
+    assert c.last_action.key == "act.ok_limit" and client.outputs == []
+
+
+@pytest.mark.parametrize("supply, plausible", [
+    ({"soc": 98, "pvPow": 0, "batPow": 0}, False),      # battery could supply it
+    ({"soc": 50, "pvPow": 0, "batPow": 5}, False),      # discharging a little, plenty left
+    ({"soc": 22, "pvPow": 500, "batPow": 0}, False),    # battery at its stop, but PV alone covers it
+    ({"soc": 21, "pvPow": 0, "batPow": 0}, True),       # at the device's discharge stop (20 %) + margin, no PV
+    ({"soc": 40, "pvPow": 300, "batPow": -280}, True),  # charging first
+    ({"soc": None, "pvPow": 0, "batPow": 0}, True),     # unknown -> keep the old trust
+])
+def test_limit_plausibility(supply, plausible):
+    c = _controller()
+    c.setpoint = 100
+    assert c._limit_plausible(supply) is plausible
+
+
+def test_the_setpoint_reaches_the_shared_state_only_while_steering(monkeypatch):
+    """History and charts show the commanded output - not a stale value of a disabled/dry-run controller."""
+    client = RecordingClient()
+    c = _ctl(client)
+    assert st.STATE.setpoint_w is None
+    asyncio.run(c.configure(enabled=True, dry_run=True))  # setpoint is read (100) but nothing is steered
+    assert c.setpoint == 100 and st.STATE.setpoint_w is None
+    asyncio.run(c.configure(dry_run=False))
+    assert st.STATE.setpoint_w == 100
+    asyncio.run(c._apply(64, Msg("why.control", meter=0, inv=0, cap=800)))
+    assert st.STATE.setpoint_w == 64
+    asyncio.run(c.configure(enabled=False))
+    assert st.STATE.setpoint_w is None
 
 
 def test_country_max_power_is_main_account_only():

@@ -60,6 +60,7 @@ class SharedState:
         self.meter_w: float | None = None  # external grid meter (set by the grid controller), + = import
         self.meter_t: float | None = None
         self.meter_max_age_s: float = METER_MAX_AGE_S  # kept in sync with the controller's setting
+        self.setpoint_w: float | None = None  # output the grid controller is holding (None: not steering the device)
         # Long-term history: one averaged value per minute (kept HISTORY_RETENTION_DAYS days).
         try:
             retention = max(1, int(os.environ.get("HISTORY_RETENTION_DAYS", DEFAULT_RETENTION_DAYS)))
@@ -201,6 +202,12 @@ class SharedState:
             else:
                 merged.pop("meterPow", None)
                 merged.pop("_meterT", None)
+            # The commanded output, next to what the inverter really delivers (invPow): a gap between the two
+            # that lasts is exactly what is hard to reconstruct afterwards without it (issue #26).
+            if self.setpoint_w is not None:
+                merged["setpointW"] = self.setpoint_w
+            else:
+                merged.pop("setpointW", None)
             if "pvPow" in reading or "batPow" in reading:
                 self.db.add(now, merged)
             if self._eff_base is None and merged.get("soc") is not None and "pvPow" in reading:
