@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [1.0.19] - 2026-09-29
+
+### Bridge
+
+- Doku/UI: „Netzlast abdecken“ hat Vorrang vor der Ladereserve – solange der Schalter an ist, wird `CHARGE_RESERVE_W`
+  tagsüber nicht angewendet und die Batterie lädt nur mit echtem PV-Überschuss (bei Netzbezug des Hauses praktisch
+  gar nicht). Das steht jetzt in den Hilfetexten von „Ladereserve“ und „Netzlast abdecken“, in der Regler-Statuszeile
+  („Ladereserve ruht“) und im README. Verhalten unverändert.
+
 ## [1.0.18] - 2026-09-29
 
 ### Bridge
