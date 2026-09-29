@@ -871,3 +871,60 @@ def test_rejected_settings_carry_key_and_params():
         asyncio.run(c.configure(settings={"NIGHT_MAX_W": 99999}))
     assert err.value.msg.key == "err.range" and err.value.msg.params["key"] == "NIGHT_MAX_W"
     assert "NIGHT_MAX_W" in str(err.value)  # the plain (English) text for logs and curl
+
+
+# --- day cap sized from the lowest recent PV -------------------------------------------------
+
+def _pv_seen(now, *values_ago):
+    """PV samples as the state would have recorded them: (seconds ago, watts)."""
+    for ago, w in values_ago:
+        st.STATE._pv_samples.append((now - ago, float(w)))
+
+
+def test_the_day_cap_follows_the_lowest_pv_of_the_last_write_interval():
+    c = _controller()
+    latest, now = _day(soc=50, pv=320)
+    _pv_seen(now, (50, 330), (30, 240), (10, 300))  # a dip to 240 W since the last write
+    _, cap = c._plan_cap(latest, now)
+    assert cap == 240 - c.charge_reserve_w  # sized from the dip, not from the 320 W right now
+
+
+def test_a_pv_dip_older_than_the_write_interval_no_longer_counts():
+    c = _controller()
+    latest, now = _day(soc=50, pv=320)
+    _pv_seen(now, (int(c.min_interval_s) + 30, 240), (10, 330))
+    assert c._plan_cap(latest, now)[1] == 320 - c.charge_reserve_w
+
+
+def test_the_current_pv_still_counts_when_it_is_the_lowest():
+    c = _controller()
+    latest, now = _day(soc=50, pv=250)
+    _pv_seen(now, (20, 330))
+    assert c._plan_cap(latest, now)[1] == 250 - c.charge_reserve_w
+
+
+def test_the_lowest_pv_applies_to_full_and_cover_load_phases_too():
+    c = _controller()
+    latest, now = _day(soc=c.full_soc, pv=300)
+    _pv_seen(now, (20, 200))
+    assert c._plan_cap(latest, now)[1] == 200 - c.trickle_w  # PV pass-through when full
+    asyncio.run(c.configure(cover_load=True))
+    latest, now = _day(soc=50, pv=300)
+    _pv_seen(now, (5, 200))
+    assert c._plan_cap(latest, now)[1] == 200  # cover-load: guard 0 -> the lowest PV itself
+
+
+def test_the_night_cap_ignores_pv_samples():
+    c = _controller()
+    latest, now = _night(soc=60)
+    _pv_seen(now, (10, 0))
+    assert c._plan_cap(latest, now)[1] == c.night_max_w
+
+
+def test_state_keeps_only_recent_pv_samples_and_reports_the_minimum():
+    s = st.SharedState()
+    asyncio.run(s.publish({"pvPow": 100, "batPow": 0}, None))
+    asyncio.run(s.publish({"pvPow": 60, "batPow": 0}, None))
+    asyncio.run(s.publish({"soc": 50}, None))  # no fresh power reading: not a sample
+    assert len(s._pv_samples) == 2 and s.pv_min(60) == 60
+    assert s.pv_min(60, now=time.time() + 300) is None  # everything is older than the window

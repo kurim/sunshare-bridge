@@ -23,6 +23,7 @@ DEFAULT_RETENTION_DAYS = 30
 VALID_MODES = ("cloud", "lan")
 DEFAULT_MODE = "lan"
 MAX_INTEGRATION_GAP_S = 30  # longer silences (device off, bridge restarted) are not integrated
+PV_SAMPLES_KEEP_S = 180  # how far back pv_min() can look (the controller asks for its own write interval)
 HISTORY_MAXLEN = 600  # ~30-50min at the default 3-5s publish cadence
 
 
@@ -56,6 +57,7 @@ class SharedState:
         self.mode = self._load_mode()
         self.latest: dict[str, Any] | None = None
         self.history: deque[dict[str, Any]] = deque(maxlen=HISTORY_MAXLEN)
+        self._pv_samples: deque[tuple[float, float]] = deque()  # (time, pvPow) of the last PV_SAMPLES_KEEP_S
         self.lock = asyncio.Lock()
         self.meter_w: float | None = None  # external grid meter (set by the grid controller), + = import
         self.meter_t: float | None = None
@@ -189,6 +191,10 @@ class SharedState:
             # be counted again.
             if "pvPow" in reading or "batPow" in reading:
                 merged["_power_t"] = now
+                if reading.get("pvPow") is not None:
+                    self._pv_samples.append((now, float(reading["pvPow"])))
+                    while self._pv_samples and now - self._pv_samples[0][0] > PV_SAMPLES_KEEP_S:
+                        self._pv_samples.popleft()
                 self._integrate_energy(
                     now, merged.get("batChargePow"), merged.get("batDischargePow"), merged.get("pvPow")
                 )
@@ -234,6 +240,12 @@ class SharedState:
         if mqtt_pub is not None:
             mqtt_pub.publish_state(merged)
         self._broadcast()
+
+    def pv_min(self, window_s: float, now: float | None = None) -> float | None:
+        """Lowest pvPow seen in the last `window_s` seconds (None: no sample in that window)."""
+        limit = (time.time() if now is None else now) - min(window_s, PV_SAMPLES_KEEP_S)
+        values = [pv for t, pv in self._pv_samples if t >= limit]
+        return min(values) if values else None
 
     async def get_history(self) -> list[dict[str, Any]]:
         async with self.lock:
