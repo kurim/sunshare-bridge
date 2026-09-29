@@ -137,6 +137,11 @@ PLAN_SETTINGS: dict[str, tuple[str, str, float, float]] = {
     # minus charge reserve by day, the night SOC floor/ceiling) when the plan is on - a fixed value
     # here is a ceiling for what the house may need, not a guarantee that PV/grid actually cover it.
     "CONTROL_FALLBACK_W": ("fallback_w", "int", 0, 2000),
+    # Poll rates of the background loops in main.py (read again while they wait, so a change applies
+    # within seconds, without a restart): the cumulative PV yield from the cloud, and - cloud mode only - the live values. Not the
+    # grid meter: how often that reports is up to the meter itself.
+    "ENERGY_POLL_INTERVAL": ("energy_poll_s", "float", 5, 3600),
+    "CLOUD_POLL_INTERVAL": ("cloud_poll_s", "float", 0.5, 60),
 }
 
 
@@ -179,6 +184,8 @@ class GridController:
         self.min_interval_s = float(env("CONTROL_MIN_INTERVAL", "60"))
         self.meter_max_age_s = float(env("CONTROL_METER_MAX_AGE", "180"))
         self.fallback_w = int(env("CONTROL_FALLBACK_W", "0"))
+        self.energy_poll_s = float(env("ENERGY_POLL_INTERVAL", "60"))
+        self.cloud_poll_s = float(env("CLOUD_POLL_INTERVAL", "2"))
 
         # Battery plan (day: keep `charge_reserve_w` for charging until full, feed only
         # the PV above that; night: discharge up to `night_max_w` down to `night_min_soc`).
@@ -863,9 +870,15 @@ class GridController:
             # Only now, once a correction is actually due, does the write-rate limit apply - checking
             # it any earlier (e.g. before the deadband/limit checks above) would report "skipped:
             # minimum interval" even while already converged, which is misleading: nothing was ever
-            # going to be written regardless of the interval.
+            # going to be written regardless of the interval. The same goes for a correction the cap
+            # (or the inverter's own output) leaves at the current setpoint: the interval only held
+            # something back if a different value would have gone out.
             if now - self._last_write_t < self.min_interval_s:
-                self.last_action = Msg("act.skip_interval", "warn")
+                would = round(min(max(inv + self.gain * error, self.min_w), cap))
+                if would == self.setpoint and not recheck:
+                    self.last_action = Msg("act.ok_unchanged", "ok", w=would)
+                else:
+                    self.last_action = Msg("act.skip_interval", "warn")
                 return
 
         if recheck:
