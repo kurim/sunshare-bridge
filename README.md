@@ -252,6 +252,10 @@ dass der Zähler ~0 W zeigt. Er ist **aus und im Trockenlauf**, bis du ihn im UI
    beim Ausschalten geht sie sofort auf diesen konfigurierten Wert zurück. PV-/Batterie-Leistung eignen sich dafür
    *nicht* als Vorsteuerung – das Gerät hat keinen eigenen Zähler, PV sagt nichts über den Hausverbrauch zwischen zwei
    externen Zähler-Samples aus.
+9. **Änderungen von außen:** Der Regler liest den Ausgangs-Sollwert des Geräts alle 5 Minuten zurück (nicht in den
+   ersten 2 Minuten nach einem eigenen Schreibzugriff, nicht im Trockenlauf). Hast du ihn zwischenzeitlich in der
+   offiziellen App geändert, übernimmt der Regler den Wert des Geräts als Ausgangslage und regelt von dort weiter –
+   bei aktivem Regler bleibt dein App-Wert also nicht dauerhaft stehen, sondern wird bei Bedarf wieder überschrieben.
 
 ## Wetter-Prognose (OpenWeatherMap)
 

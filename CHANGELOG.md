@@ -13,6 +13,11 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Forma
   hineingewirkt. Der Failsafe wird jetzt alle `CONTROL_METER_MAX_AGE` neu berechnet, solange der Zähler fehlt, und
   schreibt nur, wenn sich der Zielwert ändert (ein fehlgeschlagener Schreibzugriff wird beim nächsten Durchlauf
   wiederholt; Wiederholungen nie schneller als `CONTROL_MIN_INTERVAL`).
+- Neu: Der Regler liest den Ausgangs-Sollwert des Geräts alle 5 Minuten zurück und übernimmt eine Abweichung
+  (z. B. eine manuelle Änderung in der offiziellen App). Bisher kannte er nur, was er selbst geschrieben hatte:
+  Errechnete er danach denselben Wert wie vorher, hielt er ihn für unverändert und ließ das Gerät auf dem App-Wert.
+  Nicht im Trockenlauf und nicht in den ersten 2 Minuten nach einem eigenen Schreibzugriff (das Gerät zeigt den
+  neuen Wert evtl. noch verzögert); der Failsafe setzt seinen Zielwert nach einer Änderung von außen erneut.
 
 ## [1.0.16] - 2026-09-28
 

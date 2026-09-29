@@ -37,6 +37,8 @@ CONTROL_FILE = Path("/data/control.json")
 INV_MAX_AGE_S = 120  # inverter reading older than this is not trusted as the control base
 EXPORT_GUARD_DECAY_INTERVAL_S = 600  # how rarely the export guard's charge-reserve raise may step back down
 EXPORT_GUARD_DECAY_STEP_W = 10  # ... and by how little each time, so it settles rather than hunts
+DEVICE_SYNC_INTERVAL_S = 300  # how often the device's own output setpoint is read back (see _resync_setpoint)
+DEVICE_SYNC_SETTLE_S = 120  # ... and how long after a write of ours it may still be taking effect
 
 # Adaptive CONTROL_GAIN (see _adapt_gain): bounded so a bad run can't wind gain up to something that
 # oscillates the real device output, or down to something that never converges. Grow slowly, shrink
@@ -231,6 +233,7 @@ class GridController:
         self._last_export_guard_t = 0.0
         self._failsafe_active = False
         self._failsafe_w: int | None = None  # last failsafe target that actually went out
+        self._last_sync_t = 0.0
         self._mqtt_connected = False
         self._config_seen = False
         self._last_payload: str | None = None  # raw text of the last message on the state topic
@@ -684,6 +687,7 @@ class GridController:
             return
         now = time.time()
         self._guard_against_export(self.meter_w, now)
+        await self._resync_setpoint(now)
 
         if self.setpoint is None:
             settings = await self._client.read_ems_settings()
@@ -743,6 +747,26 @@ class GridController:
             return
         await self._apply(new, Msg("why.control", meter=round(self.meter_w), inv=round(inv), cap=cap))
 
+    async def _resync_setpoint(self, now: float) -> None:
+        """The bridge only knows the output it wrote itself; a change made elsewhere (the official app)
+        would otherwise go unnoticed - e.g. the loop computing the same value again would see "unchanged"
+        and leave the device on the other one. So every DEVICE_SYNC_INTERVAL_S the device's own setpoint is
+        read back and adopted when it differs; the next step then works from what the device really has
+        (and the failsafe re-asserts its own target). Skipped in dry-run (nothing is ever written, so
+        there is nothing to keep in step) and while a write of ours may still be taking effect."""
+        if self.dry_run or self.setpoint is None:
+            return
+        if now - self._last_sync_t < DEVICE_SYNC_INTERVAL_S or now - self._last_write_t < DEVICE_SYNC_SETTLE_S:
+            return
+        self._last_sync_t = now
+        settings = await self._client.read_ems_settings()
+        actual = ((settings or {}).get("mesSettingUpdatePojo") or {}).get("permPower")
+        if actual is None or int(actual) == self.setpoint:
+            return
+        _LOGGER.info("Device output is %s W, not the %s W last set here (changed elsewhere?) - adopting it", actual, self.setpoint)
+        self.setpoint = int(actual)
+        self._failsafe_w = None
+
     async def _apply(self, watts: int, why: Msg) -> bool:
         """True if the value went out (or, in dry-run, would have)."""
         if self.dry_run:
@@ -777,6 +801,7 @@ class GridController:
         if not self.enabled:
             return
         now = time.time()
+        await self._resync_setpoint(now)
         first = not self._failsafe_active
         if not first and now - self._last_write_t < self.min_interval_s:
             return  # a short CONTROL_METER_MAX_AGE must not turn the re-check into a write storm

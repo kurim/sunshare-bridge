@@ -451,12 +451,23 @@ def test_failsafe_uses_the_fallback_as_is_when_it_is_within_the_night_cap(monkey
 
 
 class RecordingClient(FakeClient):
+    """Remembers every output written, and reports the device's setpoint like the real one would: the
+    last thing written - unless `device_output` says somebody else (the app) changed it."""
+
     def __init__(self, guest=True):
         super().__init__(guest)
         self.outputs = []
+        self.reads = 0
+        self.device_output = None
+
+    async def read_ems_settings(self):
+        self.reads += 1
+        shown = self.device_output if self.device_output is not None else (self.outputs[-1] if self.outputs else 100)
+        return {"mesSettingUpdatePojo": {"permPower": shown, "emsStrategyType": 1}, "emsModeAdvan": dict(self.adv)}
 
     async def set_output_power(self, watts, ems_strategy_type=1):
         self.outputs.append(watts)
+        self.device_output = None
         return self.ok
 
 
@@ -570,6 +581,76 @@ def test_step_pulls_an_over_cap_setpoint_down_at_once_despite_the_rate_limit(mon
     with mock.patch("time.time", return_value=noon):
         asyncio.run(c._step())
     assert c.setpoint == 15 and c.last_action.key == "act.set"
+
+
+# ---- an output changed outside the bridge (the official app) ----------------------------
+
+def _live_step_controller(client, monkeypatch, now):
+    c = _ctl(client)
+    asyncio.run(c.configure(enabled=True, dry_run=False, plan=False))  # setpoint 100 read from the device
+    c.meter_w = c.target_w  # inside the deadband: _step itself writes nothing
+    monkeypatch.setattr(st.STATE, "latest", {"invPow": 100, "_power_t": now})
+    return c
+
+
+def test_step_adopts_an_output_changed_outside_the_bridge(monkeypatch):
+    """The loop only knew what it wrote itself: a value set in the app went unnoticed, and computing the
+    same target again read as "unchanged", leaving the device on the app's value."""
+    client = RecordingClient()
+    now = time.time()
+    c = _live_step_controller(client, monkeypatch, now)
+    client.device_output = 210
+    asyncio.run(c._step())
+    assert c.setpoint == 210 and client.reads == 2  # once when enabling, once for the read-back
+
+
+def test_readback_leaves_a_matching_device_value_alone_and_is_rate_limited(monkeypatch):
+    client = RecordingClient()
+    now = time.time()
+    c = _live_step_controller(client, monkeypatch, now)
+    reads_before = client.reads
+    with mock.patch("time.time", return_value=now):
+        asyncio.run(c._step())
+        asyncio.run(c._step())
+    assert client.reads == reads_before + 1 and c.setpoint == 100  # second call is inside the interval
+    with mock.patch("time.time", return_value=now + 301):
+        monkeypatch.setattr(st.STATE, "latest", {"invPow": 100, "_power_t": now + 301})
+        asyncio.run(c._step())
+    assert client.reads == reads_before + 2
+
+
+def test_readback_waits_while_our_own_write_may_still_be_taking_effect(monkeypatch):
+    client = RecordingClient()
+    now = time.time()
+    c = _live_step_controller(client, monkeypatch, now)
+    reads_before = client.reads
+    c._last_write_t = now - 10  # just wrote: the device may still show the old value
+    client.device_output = 999
+    asyncio.run(c._step())
+    assert client.reads == reads_before and c.setpoint == 100
+
+
+def test_readback_is_skipped_in_dry_run():
+    client = RecordingClient()
+    c = _ctl(client)  # dry run is the default: nothing is ever written, nothing to keep in step
+    c.setpoint = 100
+    asyncio.run(c._resync_setpoint(time.time()))
+    assert client.reads == 0
+
+
+def test_failsafe_reasserts_its_target_after_an_outside_change(monkeypatch):
+    client = RecordingClient()
+    c = _ctl(client)
+    asyncio.run(c.configure(enabled=True, dry_run=False, settings={"CONTROL_FALLBACK_W": 100}))
+    latest, now = _night(soc=80)
+    monkeypatch.setattr(st.STATE, "latest", latest)
+    with mock.patch("time.time", return_value=now):
+        asyncio.run(c._failsafe())
+    assert client.outputs == [100]
+    client.device_output = 210  # changed in the app while the meter is away
+    with mock.patch("time.time", return_value=now + 600):
+        asyncio.run(c._failsafe())
+    assert client.outputs == [100, 100]  # unchanged target, but the device no longer had it
 
 
 def test_country_max_power_is_main_account_only():
