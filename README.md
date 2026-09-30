@@ -315,8 +315,18 @@ Regler oder Batterie-Plan.
    die Karte einfach weg.
 
 `PVNODE_POLL_INTERVAL` (Default 21600 s = 6 h, mindestens 600 s) bestimmt, wie oft die Bridge bei pvnode anfragt. Der
-kostenlose Tarif hat rund 250 Anfragen im Monat (der Default braucht etwa 120), kostenpflichtige Tarife erlauben
-häufigere Updates – dann das Intervall verkürzen. Die letzte Antwort wird in `/data/pvforecast.json` gemerkt: ein
+Default passt für jeden Tarif; wer mehr Anfragen hat, kann das Intervall verkürzen. Als Richtwert (Stand der
+pvnode-Tarife, im Kundenbereich nachsehen):
+
+| Tarif | Anfragen/Monat | Updates der Prognose | sinnvolles `PVNODE_POLL_INTERVAL` |
+|---|---|---|---|
+| Free | 250 | 1 pro Tag | 21600 (Default, ≈ 120/Monat) |
+| Light | 3000 | stündlich | 3600 (≈ 720/Monat) |
+| Plus | 3000 | alle 10 min | 1800 (≈ 1440/Monat); 900 ist die Grenze (≈ 2880/Monat) |
+
+Wichtig: Das Monatslimit zählt, nicht das Update-Intervall – 600 s (Minimum) sind bei 3000 Anfragen im Monat schon
+zu viel (≈ 4320). Die Bridge nutzt nur den Abruf per Site-ID (`GET /v2/forecast/{site_id}`), keine Inline-API und
+keine Standort-API, läuft also mit jedem Tarif. Die letzte Antwort wird in `/data/pvforecast.json` gemerkt: ein
 Neustart des Containers verbraucht keine Anfrage. Schlägt eine Anfrage fehl (falscher Key, Limit erreicht, pvnode
 nicht erreichbar), bleibt die letzte Prognose sichtbar und die Karte nennt den Grund.
 
