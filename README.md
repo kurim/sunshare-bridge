@@ -305,7 +305,7 @@ Kachel im Dashboard, aus OpenWeatherMaps kostenlosem 5-Tage-/3-Stunden-Forecast 
 
 Optional und rein informativ: die erwartete PV-Erzeugung für heute und morgen (kWh, Spitzenleistung, Kurve in
 15-Minuten-Schritten) als Karte im Dashboard, dazu „bisher“ (die von der Bridge gezählte Tagesenergie) und „noch
-erwartet“. Die Prognose kommt von [pvnode](https://pvnode.com/de/product/forecasting) (API v2). Ändert nichts am
+erwartet“; in der Kurve ist das bisher Erreichte als grüne Fläche eingeblendet. Die Prognose kommt von [pvnode](https://pvnode.com/de/product/forecasting) (API v2). Ändert nichts am
 Regler oder Batterie-Plan.
 
 1. Auf [pvnode.com/sites](https://pvnode.com/sites) eine Anlage anlegen (Dachflächen, Neigung, Leistung) und die

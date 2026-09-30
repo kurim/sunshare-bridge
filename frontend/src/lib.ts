@@ -71,3 +71,13 @@ export function smooth(rows: Reading[]): Reading[] {
     return out;
   });
 }
+
+/** Watts of PV so far today from the bridge's own history: the real value where the device reports one, else the booked one. */
+export function actualSeries(rows: Reading[] | undefined): [number, number][] {
+  const out: [number, number][] = [];
+  for (const r of rows ?? []) {
+    const w = r.pvPreal ?? r.pvPow;
+    if (r._t != null && typeof w === "number") out.push([r._t, Math.max(w, 0)]);
+  }
+  return out;
+}
