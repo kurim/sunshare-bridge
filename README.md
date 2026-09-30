@@ -301,6 +301,35 @@ Kachel im Dashboard, aus OpenWeatherMaps kostenlosem 5-Tage-/3-Stunden-Forecast 
 1800 s) bestimmt, wie oft neu abgefragt wird – die Vorhersage selbst ändert sich bei OpenWeatherMap ohnehin nur alle
 ~3 Stunden.
 
+## PV-Ertragsprognose (pvnode)
+
+Optional und rein informativ: die erwartete PV-Erzeugung für heute und morgen (kWh, Spitzenleistung, Kurve in
+15-Minuten-Schritten) als Karte im Dashboard, dazu „bisher“ (die von der Bridge gezählte Tagesenergie) und „noch
+erwartet“. Die Prognose kommt von [pvnode](https://pvnode.com/de/product/forecasting) (API v2). Ändert nichts am
+Regler oder Batterie-Plan.
+
+1. Auf [pvnode.com/sites](https://pvnode.com/sites) eine Anlage anlegen (Dachflächen, Neigung, Leistung) und die
+   **Site-ID** kopieren.
+2. Unter [pvnode.com/api-keys](https://pvnode.com/api-keys) einen **API-Key** erzeugen.
+3. `PVNODE_API_KEY` und `PVNODE_SITE_ID` setzen (`.env.example`, im Add-on unter „Konfiguration“); ohne beide bleibt
+   die Karte einfach weg.
+
+`PVNODE_POLL_INTERVAL` (Default 21600 s = 6 h, mindestens 600 s) bestimmt, wie oft die Bridge bei pvnode anfragt. Der
+Default passt für jeden Tarif; wer mehr Anfragen hat, kann das Intervall verkürzen. Als Richtwert (Stand der
+pvnode-Tarife, im Kundenbereich nachsehen):
+
+| Tarif | Anfragen/Monat | Updates der Prognose | sinnvolles `PVNODE_POLL_INTERVAL` |
+|---|---|---|---|
+| Free | 250 | 1 pro Tag | 21600 (Default, ≈ 120/Monat) |
+| Light | 3000 | stündlich | 3600 (≈ 720/Monat) |
+| Plus | 3000 | alle 10 min | 1800 (≈ 1440/Monat); 900 ist die Grenze (≈ 2880/Monat) |
+
+Wichtig: Das Monatslimit zählt, nicht das Update-Intervall – 600 s (Minimum) sind bei 3000 Anfragen im Monat schon
+zu viel (≈ 4320). Die Bridge nutzt nur den Abruf per Site-ID (`GET /v2/forecast/{site_id}`), keine Inline-API und
+keine Standort-API, läuft also mit jedem Tarif. Die letzte Antwort wird in `/data/pvforecast.json` gemerkt: ein
+Neustart des Containers verbraucht keine Anfrage. Schlägt eine Anfrage fehl (falscher Key, Limit erreicht, pvnode
+nicht erreichbar), bleibt die letzte Prognose sichtbar und die Karte nennt den Grund.
+
 ## Konfiguration
 
 Alles über `.env` (Vorlage: [`.env.example`](.env.example)). Wichtigste Variablen:
@@ -320,6 +349,8 @@ Alles über `.env` (Vorlage: [`.env.example`](.env.example)). Wichtigste Variabl
 | Batterie-Plan (`BATTERY_CAPACITY_WH`, `CHARGE_*`, `NIGHT_*`), `CONTROL_METER_MAX_AGE` (Zähler-Frische) und `CONTROL_FALLBACK_W` (Failsafe-Ausgabe) | Defaults, im UI überschreibbar |
 | `OWM_API_KEY`, `OWM_LAT`, `OWM_LON` | Optionale Wetter-Prognose (siehe oben); leer = Kachel bleibt weg |
 | `WEATHER_POLL_INTERVAL` | Abfrage-Intervall der Wetter-Prognose (Default 1800 s) |
+| `PVNODE_API_KEY`, `PVNODE_SITE_ID` | Optionale PV-Ertragsprognose von pvnode (siehe oben); leer = Karte bleibt weg |
+| `PVNODE_POLL_INTERVAL` | Abfrage-Intervall der pvnode-Prognose (Default 21600 s, mindestens 600 s) |
 | `TZ` | Zeitzone (Default `Europe/Berlin`) – bestimmt u. a. den Tageswechsel des PV-Tageszählers |
 | `LOG_LEVEL` | `DEBUG`/`INFO` (Default)/`WARNING`/`ERROR` |
 

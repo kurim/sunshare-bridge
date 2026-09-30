@@ -70,6 +70,12 @@ EN: dict[str, str] = {
     "login.failed": "Sunshare login failed: {msg}",
     "login.unreachable": "Sunshare login: server not reachable ({reason})",
     "login.no_token": "Sunshare login: no access token in the response",
+    # PV yield forecast (pvnode)
+    "pvf.auth": "pvnode rejected the API key or site ID (HTTP {status})",
+    "pvf.rate_limit": "pvnode request limit reached – the last forecast stays shown",
+    "pvf.http": "pvnode answered with HTTP {status}",
+    "pvf.network": "pvnode not reachable ({reason})",
+    "pvf.invalid": "pvnode response contained no usable forecast",
 }
 
 

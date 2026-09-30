@@ -3,6 +3,19 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [1.2.0] - 2026-09-30
+
+### Bridge
+
+- Neu: optionale **PV-Ertragsprognose von pvnode** (API v2, `PVNODE_API_KEY` + `PVNODE_SITE_ID`, Anlage und Dachflächen
+  legst du auf pvnode.com an). Im Dashboard erscheint eine Karte mit der erwarteten Tagesenergie für heute und morgen,
+  „bisher“/„noch erwartet“, der Spitzenleistung und der Kurve in 15-Minuten-Schritten (mit „Jetzt“-Marke); neuer
+  Endpunkt `/api/pvforecast`. Rein informativ: der Regler und der Batterie-Plan nutzen die Prognose nicht.
+- Sparsam mit dem Kontingent: Abfrage alle `PVNODE_POLL_INTERVAL` (Default 6 h, mindestens 10 min; der kostenlose Tarif
+  hat rund 250 Anfragen im Monat). Die letzte Antwort liegt in `/data/pvforecast.json`, ein Neustart fragt nicht neu
+  an. Nach einem Fehler (falscher Key, Limit, Netz) bleibt die letzte Prognose stehen; die Karte nennt den Grund.
+  Ohne Key/Site-ID passiert nichts, die Karte fehlt.
+
 ## [1.1.4] - 2026-09-29
 
 ### Bridge

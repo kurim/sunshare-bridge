@@ -35,6 +35,7 @@ from .lan_proxy import make_app as make_lan_app
 from .models import normalize_cloud, normalize_energy_summary
 from .mqtt_publisher import MqttPublisher
 from .debug_log import DEBUG
+from .pvforecast import DEFAULT_POLL_S, PvForecastClient
 from .raw_log import RAW
 from .state import STATE
 from .sunshare_cloud import SunshareCloudClient, SunshareLoginError, guest_from_env
@@ -71,7 +72,8 @@ def _redirect(target: str):
 
 
 def make_ui_app(
-    controller: GridController, auth: Auth | None = None, web_dir=None, weather: WeatherClient | None = None
+    controller: GridController, auth: Auth | None = None, web_dir=None, weather: WeatherClient | None = None,
+    pvforecast: PvForecastClient | None = None,
 ) -> web.Application:
     """`auth` None = no login (LAN only). `web_dir` overrides where the built React app lives."""
     app = web.Application(middlewares=[compress, auth_mod.make_middleware(auth)])
@@ -207,6 +209,9 @@ def make_ui_app(
             "available": False, "today": None, "tomorrow": None, "updated_at": None, "error": None,
         })
 
+    async def get_pvforecast(request: web.Request) -> web.Response:
+        return web.json_response(pvforecast.status() if pvforecast else PvForecastClient(None, None, None).status())
+
     for old, new in LEGACY_REDIRECTS.items():
         app.router.add_get(old, _redirect(new))
     app.router.add_get("/api/raw", get_raw)
@@ -216,6 +221,7 @@ def make_ui_app(
     app.router.add_post("/api/debug/clear", clear_debug)
     app.router.add_get("/api/env", get_env)
     app.router.add_get("/api/weather", get_weather)
+    app.router.add_get("/api/pvforecast", get_pvforecast)
     app.router.add_get("/api/control", get_control)
     app.router.add_post("/api/control", set_control)
     app.router.add_get("/api/state", get_state)
@@ -281,6 +287,17 @@ async def weather_poll_loop(weather: WeatherClient, interval: float) -> None:
         except Exception:  # noqa: BLE001
             _LOGGER.exception("Weather poll failed")
         await asyncio.sleep(interval)
+
+
+async def pvforecast_poll_loop(forecast: PvForecastClient) -> None:
+    """No-ops (see PvForecastClient.available) unless PVNODE_API_KEY/PVNODE_SITE_ID are both set;
+    the client itself decides when a request is due, so a restart does not spend the monthly quota."""
+    while True:
+        try:
+            await forecast.poll()
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception("PV forecast poll failed")
+        await asyncio.sleep(60)
 
 
 def _optional_float(value: str | None) -> float | None:
@@ -363,7 +380,13 @@ async def main() -> None:
             session, os.environ.get("OWM_API_KEY") or None,
             _optional_float(os.environ.get("OWM_LAT")), _optional_float(os.environ.get("OWM_LON")),
         )
-        ui_runner = web.AppRunner(make_ui_app(controller, Auth.from_env(), weather=weather), access_log=None)
+        pvforecast = PvForecastClient(
+            session, os.environ.get("PVNODE_API_KEY") or None, os.environ.get("PVNODE_SITE_ID") or None,
+            float(os.environ.get("PVNODE_POLL_INTERVAL") or DEFAULT_POLL_S),
+        )
+        ui_runner = web.AppRunner(
+            make_ui_app(controller, Auth.from_env(), weather=weather, pvforecast=pvforecast), access_log=None,
+        )
         await ui_runner.setup()
         await web.TCPSite(ui_runner, "0.0.0.0", ui_port).start()
 
@@ -377,6 +400,7 @@ async def main() -> None:
             cloud_poll_loop(client, mqtt_pub, lambda: controller.cloud_poll_s),  # editable in the UI
             energy_poll_loop(client, mqtt_pub, lambda: controller.energy_poll_s),
             weather_poll_loop(weather, weather_poll_interval),
+            pvforecast_poll_loop(pvforecast),
             controller.run(),
         )
         await stop.wait()

@@ -1,5 +1,5 @@
 name: Sunshare Bridge
-version: "1.1.4"
+version: "1.2.0"
 slug: sunshare_bridge
 description: >-
   Live-Daten, Verlauf und Nulleinspeisung für Sunshare-Mikro-Wechselrichter mit Batterie:
@@ -67,6 +67,9 @@ options:
   OWM_LAT: ""
   OWM_LON: ""
   WEATHER_POLL_INTERVAL: 1800
+  PVNODE_API_KEY: ""
+  PVNODE_SITE_ID: ""
+  PVNODE_POLL_INTERVAL: 21600
 schema:
   SUNSHARE_USER_ACCOUNT: str
   SUNSHARE_PASSWORD: password
@@ -112,3 +115,6 @@ schema:
   OWM_LAT: str?
   OWM_LON: str?
   WEATHER_POLL_INTERVAL: int
+  PVNODE_API_KEY: password?
+  PVNODE_SITE_ID: str?
+  PVNODE_POLL_INTERVAL: int
