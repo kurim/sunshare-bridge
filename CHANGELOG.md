@@ -3,6 +3,14 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [1.2.1] - 2026-09-30
+
+### Bridge
+
+- PV-Prognose: Die Kurve zeigt jetzt auch, was heute schon erreicht wurde – als grüne Fläche über der (blauen)
+  Prognose, aus dem Langzeit-Verlauf der Bridge (PV real, sonst gebucht). Legende unter der Kurve, im Tooltip stehen
+  Prognose und erreichter Wert zur selben Zeit. Nur Frontend, keine neuen Einstellungen.
+
 ## [1.2.0] - 2026-09-30
 
 ### Bridge

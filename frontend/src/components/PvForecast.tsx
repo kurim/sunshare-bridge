@@ -1,12 +1,13 @@
 import { useMemo, useState, type PointerEvent } from "react";
 import type { PvForecast, PvForecastDay } from "../api";
 import { fmt } from "../format";
-import { useNow, useWidth } from "../hooks";
+import { useLongHistory, useNow, useWidth } from "../hooks";
 import { useMsg, useT } from "../i18n";
-import { dm, hm } from "../lib";
+import { actualSeries, dm, hm } from "../lib";
 import { Icon } from "./Icons";
 
 const H = 120, L = 34, R = 8, T = 8, B = 20;
+const ACTUAL_GAP_S = 300; // a longer hole in the history is drawn as a break, and no tooltip value is taken across it
 
 function niceMax(w: number): number {
   for (const step of [200, 400, 500, 1000, 2000]) if (w <= step * 4) return Math.ceil(Math.max(w, 1) / step) * step;
@@ -15,7 +16,7 @@ function niceMax(w: number): number {
 
 /** Expected PV power over today and tomorrow (see app/pvforecast.py); the bridge sends the whole
  * curve, so nothing is asked of pvnode when this is drawn or when "now" moves. */
-function ForecastChart({ series, stepS, label }: { series: [number, number][]; stepS: number; label: string }) {
+function ForecastChart({ series, actual, stepS, label }: { series: [number, number][]; actual: [number, number][]; stepS: number; label: string }) {
   const t = useT();
   const now = useNow(60_000);
   const [box, width] = useWidth<HTMLDivElement>();
@@ -24,11 +25,11 @@ function ForecastChart({ series, stepS, label }: { series: [number, number][]; s
 
   const g = useMemo(() => {
     const t0 = series[0][0], t1 = series[series.length - 1][0] + stepS;
-    const peak = Math.max(...series.map((p) => p[1]));
+    const peak = Math.max(...series.map((p) => p[1]), ...actual.map((p) => p[1]));
     const midnight = new Date(now * 1000);
     midnight.setHours(24, 0, 0, 0);
     return { t0, t1, hi: niceMax(peak), midnight: midnight.getTime() / 1000 };
-  }, [series, stepS, now]);
+  }, [series, actual, stepS, now]);
 
   const x = (ts: number) => L + (ts - g.t0) / (g.t1 - g.t0) * (W - L - R);
   const y = (w: number) => T + (1 - w / g.hi) * (H - T - B);
@@ -38,6 +39,12 @@ function ForecastChart({ series, stepS, label }: { series: [number, number][]; s
     const line = pts.map(([ts, w]) => `L${x(ts).toFixed(1)} ${y(w).toFixed(1)}`).join("");
     return `M${x(pts[0][0]).toFixed(1)} ${y(0)}${line}L${x(pts[pts.length - 1][0]).toFixed(1)} ${y(0)}Z`;
   };
+  // what was reached: one filled area per continuous stretch of history
+  const actualArea = actual.filter((p) => p[0] >= g.t0 && p[0] <= g.t1).reduce<[number, number][][]>((runs, p) => {
+    const run = runs[runs.length - 1];
+    if (run && p[0] - run[run.length - 1][0] <= ACTUAL_GAP_S) run.push(p); else runs.push([p]);
+    return runs;
+  }, []).map((run) => (run.length > 1 ? area(run) : "")).join("");
   const todayPts = series.filter((p) => p[0] < g.midnight);
   const tomorrowPts = series.filter((p) => p[0] >= g.midnight);
 
@@ -54,6 +61,9 @@ function ForecastChart({ series, stepS, label }: { series: [number, number][]; s
   };
   const point = hover != null ? series.reduce((a, b) => (Math.abs(b[0] - hover) < Math.abs(a[0] - hover) ? b : a)) : null;
   const px = point ? x(point[0]) : 0;
+  const reached = hover != null && actual.length
+    ? actual.reduce((a, b) => (Math.abs(b[0] - hover) < Math.abs(a[0] - hover) ? b : a)) : null;
+  const reachedW = reached && point && Math.abs(reached[0] - point[0]) <= ACTUAL_GAP_S ? reached[1] : null;
 
   return (
     <div className="chart" ref={box}>
@@ -70,6 +80,7 @@ function ForecastChart({ series, stepS, label }: { series: [number, number][]; s
         ))}
         <path d={area(todayPts)} style={{ fill: "var(--c-pv)", stroke: "var(--c-pv)" }} fillOpacity={0.35} strokeWidth={1.5} strokeLinejoin="round" />
         <path d={area(tomorrowPts)} style={{ fill: "var(--c-pv)", stroke: "var(--c-pv)" }} fillOpacity={0.15} strokeWidth={1.5} strokeOpacity={0.6} strokeLinejoin="round" />
+        <path d={actualArea} style={{ fill: "var(--c-inv)", stroke: "var(--c-inv)" }} fillOpacity={0.35} strokeWidth={1.5} strokeLinejoin="round" />
         {now >= g.t0 && now <= g.t1 && (
           <g pointerEvents="none">
             <line className="cursor" x1={x(now)} x2={x(now)} y1={T} y2={H - B} />
@@ -86,7 +97,8 @@ function ForecastChart({ series, stepS, label }: { series: [number, number][]; s
       {point && (
         <div className="tip" style={px > W / 2 ? { left: L + 6 } : { right: R + 6 }}>
           <b>{dm(point[0])} {hm(point[0])}</b>
-          <div>{t("ov.pvf.tip", { w: fmt(point[1], "W") })}</div>
+          <div><span style={{ color: "var(--c-pv)" }}>●</span> {t("ov.pvf.tip", { w: fmt(point[1], "W") })}</div>
+          {reachedW != null && <div><span style={{ color: "var(--c-inv)" }}>●</span> {t("ov.pvf.tipActual", { w: fmt(reachedW, "W") })}</div>}
         </div>
       )}
     </div>
@@ -109,6 +121,8 @@ function DayTile({ label, day, hint }: { label: string; day: PvForecastDay; hint
 export function PvForecastCard({ forecast, actualKwh }: { forecast: PvForecast; actualKwh: number | null }) {
   const t = useT();
   const tm = useMsg();
+  const history = useLongHistory({ range: "today" });
+  const actual = useMemo(() => actualSeries(history?.rows), [history]);
   const { today, tomorrow, series, updated_at: updatedAt, error } = forecast;
   const rest = today?.remaining_kwh != null ? fmt(today.remaining_kwh, "kWh", 1) : null;
   const todayHint = rest == null ? undefined
@@ -122,7 +136,13 @@ export function PvForecastCard({ forecast, actualKwh }: { forecast: PvForecast; 
           {tomorrow && <DayTile label={t("ov.pvf.tomorrow")} day={tomorrow} />}
         </div>
       )}
-      {series.length > 1 && <ForecastChart series={series} stepS={forecast.step_s} label={t("ov.pvf.chart")} />}
+      {series.length > 1 && <ForecastChart series={series} actual={actual} stepS={forecast.step_s} label={t("ov.pvf.chart")} />}
+      {series.length > 1 && (
+        <div className="legend">
+          <span><i className="sw" style={{ background: "var(--c-pv)" }} />{t("ov.pvf.legendForecast")}</span>
+          <span><i className="sw" style={{ background: "var(--c-inv)" }} />{t("ov.pvf.legendActual")}</span>
+        </div>
+      )}
       {error && <p className="hint" role="alert">{tm(error)}</p>}
       {updatedAt != null && <p className="hint">{t("ov.pvf.updated", { time: hm(updatedAt) })}</p>}
     </section>
