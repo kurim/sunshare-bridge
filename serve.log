@@ -1,0 +1,21 @@
+Traceback (most recent call last):
+  File "/tmp/claude-0/-home-user-sunshare-bridge/0794680a-41eb-5cf0-aa0b-51ef1f12aa69/scratchpad/serve.py", line 28, in <module>
+    asyncio.run(main())
+  File "/usr/lib/python3.11/asyncio/runners.py", line 190, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/tmp/claude-0/-home-user-sunshare-bridge/0794680a-41eb-5cf0-aa0b-51ef1f12aa69/scratchpad/serve.py", line 26, in main
+    r = web.AppRunner(app); await r.setup(); await web.TCPSite(r, "127.0.0.1", 8123).start()
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/.local/lib/python3.11/site-packages/aiohttp/web_runner.py", line 138, in start
+    self._server = await loop.create_server(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.11/asyncio/base_events.py", line 1536, in create_server
+    raise OSError(err.errno, msg) from None
+OSError: [Errno 98] error while attempting to bind on address ('127.0.0.1', 8123): address already in use

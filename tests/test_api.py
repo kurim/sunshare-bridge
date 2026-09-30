@@ -83,6 +83,14 @@ def test_weather_endpoint_is_unavailable_without_a_configured_client():
     _run(check)
 
 
+def test_pvforecast_endpoint_is_unavailable_without_a_configured_client():
+    async def check(client):
+        body = await (await client.get("/api/pvforecast")).json()
+        assert body["available"] is False and body["today"] is None and body["series"] == [] and body["error"] is None
+
+    _run(check)
+
+
 def test_raw_log_endpoints():
     async def check(client):
         from app.raw_log import RAW

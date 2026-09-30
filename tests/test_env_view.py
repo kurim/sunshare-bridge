@@ -39,5 +39,5 @@ def test_defaults_are_reported_as_such(monkeypatch):
 
 def test_groups_have_ids_for_translation():
     groups = describe_env()
-    assert [g["id"] for g in groups] == ["account", "ui_login", "mqtt", "source", "intervals", "meter", "controller", "weather"]
+    assert [g["id"] for g in groups] == ["account", "ui_login", "mqtt", "source", "intervals", "meter", "controller", "weather", "pvforecast"]
     assert all(g["title"] for g in groups)  # English fallback title

@@ -137,6 +137,25 @@ export interface WeatherStatus {
   error: string | null;
 }
 
+/** Expected PV yield from pvnode (see app/pvforecast.py): kWh per day plus the curve as [epoch s, W]
+ * pairs in `step_s` steps; `today`/`tomorrow` are null while there is no data for that day. */
+export interface PvForecastDay {
+  kwh: number;
+  peak_w: number;
+  peak_t: number;
+  /** Today only: what is still expected from now on. */
+  remaining_kwh?: number;
+}
+export interface PvForecast {
+  available: boolean;
+  updated_at: number | null;
+  step_s: number;
+  today: PvForecastDay | null;
+  tomorrow: PvForecastDay | null;
+  series: [number, number][];
+  error: Msg | null;
+}
+
 export interface EnvItem {
   key: string;
   value: string;
@@ -174,6 +193,7 @@ export const postControl = (update: ControlUpdate) =>
   api<ControlStatus>("/api/control", { method: "POST", body: JSON.stringify(update) });
 export const getEnv = () => api<EnvGroup[]>("/api/env");
 export const getWeather = () => api<WeatherStatus>("/api/weather");
+export const getPvForecast = () => api<PvForecast>("/api/pvforecast");
 
 export const getHistoryCompact = () => api<Reading[]>("/api/history?compact=1");
 /** A rolling window (`{ minutes }`, e.g. "last 24h") or an actual local calendar day

@@ -41,6 +41,9 @@ _GROUPS: list[tuple[str, str, list[tuple[str, str | None]]]] = [
     ("weather", "Weather forecast (OpenWeatherMap)", [
         ("OWM_API_KEY", None), ("OWM_LAT", None), ("OWM_LON", None), ("WEATHER_POLL_INTERVAL", "1800"),
     ]),
+    ("pvforecast", "PV yield forecast (pvnode)", [
+        ("PVNODE_API_KEY", None), ("PVNODE_SITE_ID", None), ("PVNODE_POLL_INTERVAL", "21600"),
+    ]),
 ]
 
 _SECRET = ("PASSWORD", "TOKEN", "SECRET", "KEY")  # also covers UI_PASSWORD / UI_SESSION_SECRET / OWM_API_KEY

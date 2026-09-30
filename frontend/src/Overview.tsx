@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { WeatherDay } from "./api";
 import { EnergyFlow } from "./components/EnergyFlow";
 import { BatteryIcon, Icon } from "./components/Icons";
+import { PvForecastCard } from "./components/PvForecast";
 import { fmt } from "./format";
 import { useMsg, useT, type Key, type Translate } from "./i18n";
 import { socColor } from "./lib";
@@ -51,7 +52,7 @@ function FlowBadge({ discharging, text }: { discharging: boolean; text: string }
 export function Overview() {
   const t = useT();
   const tm = useMsg();
-  const { reading, control, weather, mode } = useLiveData();
+  const { reading, control, weather, pvforecast, mode } = useLiveData();
   // Cloud mode has no socket/feed-in split (see app/models.py's normalize_cloud): those fields
   // never arrive at all, so showing "–" tiles for them would look like a fault rather than a
   // difference between data sources - hide the tiles outright instead.
@@ -123,6 +124,10 @@ export function Overview() {
               {control.device_limits && t("ov.deviceRange", { min: fmt(control.device_limits.soc_min, "%"), max: fmt(control.device_limits.soc_max, "%") })}
             </p>
           </section>
+        )}
+
+        {pvforecast?.available && (pvforecast.today || pvforecast.tomorrow || pvforecast.error) && (
+          <PvForecastCard forecast={pvforecast} actualKwh={reading?.pvEnergyTodayKwh ?? null} />
         )}
 
         {weather?.available && (weather.today || weather.tomorrow) && (
