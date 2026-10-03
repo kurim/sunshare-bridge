@@ -70,7 +70,8 @@ docker compose up -d --build
 - **iOS-Startbilder** (`public/splash/*.png` und die `apple-touch-startup-image`-Tags in `index.html`) sind erzeugt:
   `python3 frontend/scripts/make-splash.py` (Pillow) statt von Hand ändern; iOS braucht pro Gerätegröße ein exakt passendes Bild.
 - **Frontend-Layout:** Handy = eine Spalte + untere Tab-Leiste mit Icons, ab 900 px Navigation in der Kopfzeile und
-  Zwei-Spalten-Raster (`.col`, `*-grid` in `styles.css`); jede Seite muss bei 390 px ohne waagerechtes Scrollen passen.
+  Zwei-Spalten-Raster (`.col`, `*-grid` in `styles.css`); jede Seite muss bei 390 px ohne waagerechtes Scrollen passen. In der installierten PWA (`pwa.ts`: `isStandalone()`) fehlen
+  die Tabs „Raw“ und „Debug“ (`HIDDEN_IN_PWA`), erreichbar bleiben sie per Adresse.
 - **Frontend:** neue Seiten kommen in `frontend/` (React + TS, mobile-first, Light/Dark über `prefers-color-scheme`);
   der Service Worker cached nur die App-Shell, **nie** `/api/*`. Die Adressen der früheren Oberfläche (`/`, `/flow`,
   `/control`, `/raw`) leiten auf `/app/…` um (`LEGACY_REDIRECTS` in `main.py`).

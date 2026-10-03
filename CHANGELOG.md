@@ -10,6 +10,9 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Forma
 - Der Prognose-Graph (mit dem bisher Erreichten) erscheint jetzt auch im Tab „Fluss“, unter den Leistungs-Charts und
   mit größerer Höhe; die Tageswerte (kWh) bleiben auf der Übersicht. Er hängt nicht am Zeitraum-Schalter, sondern zeigt
   immer heute und morgen. Nur Frontend.
+- In der installierten App (PWA, Standalone-Modus) fehlen die Tabs „Raw“ und „Debug“ in der Navigation – die beiden
+  Entwicklerseiten brauchen dort keinen Platz in der Tab-Leiste. Im Browser und im Home-Assistant-Add-on bleiben sie;
+  per Adresse (`/app/raw`, `/app/debug`) sind sie auch in der App erreichbar.
 
 ## [1.2.1] - 2026-09-30
 
