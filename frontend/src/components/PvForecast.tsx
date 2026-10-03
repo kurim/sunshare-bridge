@@ -6,7 +6,7 @@ import { useMsg, useT } from "../i18n";
 import { actualSeries, dm, hm } from "../lib";
 import { Icon } from "./Icons";
 
-const H = 120, L = 34, R = 8, T = 8, B = 20;
+const L = 34, R = 8, T = 8, B = 20;
 const ACTUAL_GAP_S = 300; // a longer hole in the history is drawn as a break, and no tooltip value is taken across it
 
 function niceMax(w: number): number {
@@ -16,7 +16,9 @@ function niceMax(w: number): number {
 
 /** Expected PV power over today and tomorrow (see app/pvforecast.py); the bridge sends the whole
  * curve, so nothing is asked of pvnode when this is drawn or when "now" moves. */
-function ForecastChart({ series, actual, stepS, label }: { series: [number, number][]; actual: [number, number][]; stepS: number; label: string }) {
+function ForecastChart({ series, actual, stepS, label, height: H }: {
+  series: [number, number][]; actual: [number, number][]; stepS: number; label: string; height: number;
+}) {
   const t = useT();
   const now = useNow(60_000);
   const [box, width] = useWidth<HTMLDivElement>();
@@ -118,7 +120,20 @@ function DayTile({ label, day, hint }: { label: string; day: PvForecastDay; hint
 
 /** `actualKwh` is the bridge's own PV yield of today (booked PV power, integrated), so the forecast
  * can be read against what has already happened. */
-export function PvForecastCard({ forecast, actualKwh }: { forecast: PvForecast; actualKwh: number | null }) {
+function Legend() {
+  const t = useT();
+  return (
+    <div className="legend">
+      <span><i className="sw" style={{ background: "var(--c-pv)" }} />{t("ov.pvf.legendForecast")}</span>
+      <span><i className="sw" style={{ background: "var(--c-inv)" }} />{t("ov.pvf.legendActual")}</span>
+    </div>
+  );
+}
+
+/** `chartOnly` (the Verlauf page): just the curve with its legend, no day tiles - those live on the overview. */
+export function PvForecastCard({ forecast, actualKwh, chartOnly = false, height = 120 }: {
+  forecast: PvForecast; actualKwh: number | null; chartOnly?: boolean; height?: number;
+}) {
   const t = useT();
   const tm = useMsg();
   const history = useLongHistory({ range: "today" });
@@ -127,22 +142,23 @@ export function PvForecastCard({ forecast, actualKwh }: { forecast: PvForecast; 
   const rest = today?.remaining_kwh != null ? fmt(today.remaining_kwh, "kWh", 1) : null;
   const todayHint = rest == null ? undefined
     : actualKwh != null ? t("ov.pvf.todayDetail", { actual: fmt(actualKwh, "kWh", 1), rest }) : t("ov.pvf.todayRest", { rest });
+  const hasCurve = series.length > 1;
   return (
     <section className="card">
-      <h2 className="with-icon"><Icon name="sun" />{t("ov.pvf")}</h2>
-      {(today || tomorrow) && (
+      {chartOnly ? (
+        <div className="card-head">
+          <span className="label with-icon"><Icon name="sun" />{t("ov.pvf")}</span>
+          {hasCurve && <Legend />}
+        </div>
+      ) : <h2 className="with-icon"><Icon name="sun" />{t("ov.pvf")}</h2>}
+      {!chartOnly && (today || tomorrow) && (
         <div className="tiles compact">
           {today && <DayTile label={t("ov.pvf.today")} day={today} hint={todayHint} />}
           {tomorrow && <DayTile label={t("ov.pvf.tomorrow")} day={tomorrow} />}
         </div>
       )}
-      {series.length > 1 && <ForecastChart series={series} actual={actual} stepS={forecast.step_s} label={t("ov.pvf.chart")} />}
-      {series.length > 1 && (
-        <div className="legend">
-          <span><i className="sw" style={{ background: "var(--c-pv)" }} />{t("ov.pvf.legendForecast")}</span>
-          <span><i className="sw" style={{ background: "var(--c-inv)" }} />{t("ov.pvf.legendActual")}</span>
-        </div>
-      )}
+      {hasCurve && <ForecastChart series={series} actual={actual} stepS={forecast.step_s} label={t("ov.pvf.chart")} height={height} />}
+      {hasCurve && !chartOnly && <Legend />}
       {error && <p className="hint" role="alert">{tm(error)}</p>}
       {updatedAt != null && <p className="hint">{t("ov.pvf.updated", { time: hm(updatedAt) })}</p>}
     </section>

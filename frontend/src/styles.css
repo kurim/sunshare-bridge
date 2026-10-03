@@ -180,7 +180,7 @@ input[aria-invalid="true"] { border-color: var(--bad); }
 .ranges button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #111; font-weight: 600; }
 .ranges button[disabled] { opacity: .45; cursor: default; }
 .ranges .smooth { margin-left: auto; }
-.flow-grid { display: grid; gap: .75rem; }
+.flow-grid { display: grid; gap: .75rem; margin-bottom: .75rem; }
 .flow-grid > .card, .flow-side > .card { margin-bottom: 0; }
 .flow-side { display: grid; gap: .75rem; }
 @media (min-width: 1000px) {

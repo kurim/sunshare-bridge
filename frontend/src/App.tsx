@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getMe, logout, type Me } from "./api";
 import { Icon, type IconName } from "./components/Icons";
 import { ThemeToggle } from "./components/ThemeToggle";
@@ -12,6 +12,7 @@ import { Login } from "./Login";
 import { Overview } from "./Overview";
 import { Raw } from "./Raw";
 import { Link, usePath } from "./router";
+import { HIDDEN_IN_PWA, isStandalone } from "./pwa";
 import { Telemetry } from "./Telemetry";
 
 const TABS: { to: string; label: Key; icon: IconName }[] = [
@@ -45,13 +46,14 @@ function Shell({ me, onSessionEnded }: { me: Me; onSessionEnded: () => void }) {
   const text = status === "live" ? t("conn.live", { mode: mode ?? "?" })
     : status === "stale" ? t("conn.stale") : status === "connecting" ? t("conn.connecting") : t("conn.offline");
   const known = TABS.some((tab) => tab.to === path);
+  const tabs = useMemo(() => (isStandalone() ? TABS.filter((tab) => !HIDDEN_IN_PWA.includes(tab.to)) : TABS), []);
 
   return (
     <>
       <header className="top">
         <h1>{t("app.title")} <span className="version-tag">{me.version}</span></h1>
         <nav className="tabs" aria-label={t("nav.label")}>
-          {TABS.map((tab) => (
+          {tabs.map((tab) => (
             <Link key={tab.to} to={tab.to} className={path === tab.to || (tab.to === "/" && !known) ? "active" : ""}>
               <Icon name={tab.icon} />
               <span>{t(tab.label)}</span>
