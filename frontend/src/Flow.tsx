@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { HistorySpec, Reading } from "./api";
 import { TimeChart, type Series } from "./charts/TimeChart";
+import { PvForecastCard } from "./components/PvForecast";
 import { fmt } from "./format";
 import { useLongHistory } from "./hooks";
 import { useT, type Key, type Translate } from "./i18n";
@@ -68,7 +69,7 @@ function Card({ title, legend, children }: { title: string; legend: React.ReactN
 
 export function Flow() {
   const t = useT();
-  const { history, control, mode } = useLiveData();
+  const { history, control, mode, pvforecast, reading } = useLiveData();
   const cloudMode = mode === "cloud";
   const POWER_DEFS_SHOWN = POWER_DEFS.filter((p) => !cloudMode || !p.lanOnly);
   const METER = meterSeries(t), SOC = socSeries(t);
@@ -161,6 +162,10 @@ export function Flow() {
           </Card>
         </div>
       </div>
+
+      {pvforecast?.available && (pvforecast.series.length > 1 || pvforecast.error) && (
+        <PvForecastCard forecast={pvforecast} actualKwh={reading?.pvEnergyTodayKwh ?? null} chartOnly height={narrow ? 160 : 200} />
+      )}
     </>
   );
 }
