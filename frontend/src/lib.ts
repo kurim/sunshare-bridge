@@ -73,6 +73,15 @@ export function smooth(rows: Reading[]): Reading[] {
 }
 
 /** Watts of PV so far today from the bridge's own history: the real value where the device reports one, else the booked one. */
+/** Today's yield for the forecast tile: what is already reached plus what pvnode still expects from now on.
+ * pvnode's day total also covers the hours already past with modelled values, not with what really happened,
+ * so on a day that beats the forecast it would read less than "so far"; the tile leads with the expected end-of-day value instead and
+ * keeps pvnode's total as a side note. Without the bridge's own yield there is nothing to add up. */
+export function todayYield(forecastKwh: number, actualKwh: number | null, restKwh: number | null): number {
+  if (actualKwh == null || restKwh == null) return forecastKwh;
+  return Math.max(actualKwh, 0) + Math.max(restKwh, 0);
+}
+
 export function actualSeries(rows: Reading[] | undefined): [number, number][] {
   const out: [number, number][] = [];
   for (const r of rows ?? []) {

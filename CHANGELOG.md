@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [1.2.3] - 2026-10-16
+
+### Bridge
+
+- PV-Prognose-Karte: „Heute“ zeigt jetzt bisher Erreichtes plus die Restprognose ab jetzt, statt der pvnode-Tagessumme.
+  Die Tagessumme rechnet auch die vergangenen Stunden mit Modellwerten, nicht mit dem echten Ertrag – an einem Tag,
+  der die Prognose übertrifft, stand dort weniger als unter „Bisher“ (z. B. 2,2 kWh bei bisher 3,2 kWh). Die
+  pvnode-Tagessumme bleibt als eigene Zeile darunter sichtbar. Ohne eigenen Tagesertrag bleibt es bei der Tagessumme.
+  Nur Frontend.
+
 ## [1.2.2] - 2026-10-03
 
 ### Bridge

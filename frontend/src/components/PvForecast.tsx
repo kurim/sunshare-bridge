@@ -3,7 +3,7 @@ import type { PvForecast, PvForecastDay } from "../api";
 import { fmt } from "../format";
 import { useLongHistory, useNow, useWidth } from "../hooks";
 import { useMsg, useT } from "../i18n";
-import { actualSeries, dm, hm } from "../lib";
+import { actualSeries, dm, hm, todayYield } from "../lib";
 import { Icon } from "./Icons";
 
 const L = 34, R = 8, T = 8, B = 20;
@@ -107,13 +107,16 @@ function ForecastChart({ series, actual, stepS, label, height: H }: {
   );
 }
 
-function DayTile({ label, day, hint }: { label: string; day: PvForecastDay; hint?: string }) {
+function DayTile({ label, day, kwh = day.kwh, hint, note }: {
+  label: string; day: PvForecastDay; kwh?: number; hint?: string; note?: string;
+}) {
   const t = useT();
   return (
     <div className="tile" style={{ ["--tile-c" as string]: "var(--c-pv)" }}>
       <div className="tile-head"><span className="label with-icon"><Icon name="sun" />{label}</span></div>
-      <strong>{fmt(day.kwh, "kWh", 1)}</strong>
+      <strong>{fmt(kwh, "kWh", 1)}</strong>
       <span className="hint">{hint ?? t("ov.pvf.peak", { w: fmt(day.peak_w, "W"), time: hm(day.peak_t) })}</span>
+      {note && <span className="hint">{note}</span>}
     </div>
   );
 }
@@ -139,9 +142,13 @@ export function PvForecastCard({ forecast, actualKwh, chartOnly = false, height 
   const history = useLongHistory({ range: "today" });
   const actual = useMemo(() => actualSeries(history?.rows), [history]);
   const { today, tomorrow, series, updated_at: updatedAt, error } = forecast;
-  const rest = today?.remaining_kwh != null ? fmt(today.remaining_kwh, "kWh", 1) : null;
+  const restKwh = today?.remaining_kwh ?? null;
+  const rest = restKwh != null ? fmt(restKwh, "kWh", 1) : null;
   const todayHint = rest == null ? undefined
     : actualKwh != null ? t("ov.pvf.todayDetail", { actual: fmt(actualKwh, "kWh", 1), rest }) : t("ov.pvf.todayRest", { rest });
+  // with the bridge's own yield the headline is "reached + still expected"; pvnode's day total moves to a note
+  const todayKwh = today ? todayYield(today.kwh, actualKwh, restKwh) : 0;
+  const todayNote = today && todayKwh !== today.kwh ? t("ov.pvf.todayForecast", { kwh: fmt(today.kwh, "kWh", 1) }) : undefined;
   const hasCurve = series.length > 1;
   return (
     <section className="card">
@@ -153,7 +160,7 @@ export function PvForecastCard({ forecast, actualKwh, chartOnly = false, height 
       ) : <h2 className="with-icon"><Icon name="sun" />{t("ov.pvf")}</h2>}
       {!chartOnly && (today || tomorrow) && (
         <div className="tiles compact">
-          {today && <DayTile label={t("ov.pvf.today")} day={today} hint={todayHint} />}
+          {today && <DayTile label={t("ov.pvf.today")} day={today} kwh={todayKwh} hint={todayHint} note={todayNote} />}
           {tomorrow && <DayTile label={t("ov.pvf.tomorrow")} day={tomorrow} />}
         </div>
       )}
