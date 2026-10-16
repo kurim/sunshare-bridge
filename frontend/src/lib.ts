@@ -82,6 +82,14 @@ export function todayYield(forecastKwh: number, actualKwh: number | null, restKw
   return Math.max(actualKwh, 0) + Math.max(restKwh, 0);
 }
 
+/** Share of today's expected yield already reached (0..1), for the progress bar in the forecast tile;
+ * null when there is nothing to divide by. */
+export function todayProgress(actualKwh: number | null, restKwh: number | null): number | null {
+  if (actualKwh == null || restKwh == null) return null;
+  const done = Math.max(actualKwh, 0), total = done + Math.max(restKwh, 0);
+  return total > 0 ? done / total : null;
+}
+
 export function actualSeries(rows: Reading[] | undefined): [number, number][] {
   const out: [number, number][] = [];
   for (const r of rows ?? []) {

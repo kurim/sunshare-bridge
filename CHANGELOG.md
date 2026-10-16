@@ -12,6 +12,8 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Forma
   der die Prognose übertrifft, stand dort weniger als unter „Bisher“ (z. B. 2,2 kWh bei bisher 3,2 kWh). Die
   pvnode-Tagessumme bleibt als eigene Zeile darunter sichtbar. Ohne eigenen Tagesertrag bleibt es bei der Tagessumme.
   Nur Frontend.
+- Ein schmaler Fortschrittsbalken in der Kachel „Heute“ zeigt, welcher Anteil des erwarteten Tagesertrags schon
+  erreicht ist (bisher ÷ (bisher + noch)), in der Farbe der Fläche „Erreicht“ im Graphen. Nur Frontend.
 
 ## [1.2.2] - 2026-10-03
 

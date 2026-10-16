@@ -69,6 +69,7 @@ export const de = {
   "ov.pvf.todayDetail": "Bisher {actual} · noch {rest}",
   "ov.pvf.todayRest": "Noch {rest} erwartet",
   "ov.pvf.todayForecast": "Prognose pvnode {kwh}",
+  "ov.pvf.progress": "{pct} des erwarteten Tagesertrags erreicht",
   "ov.pvf.peak": "Spitze {w} um {time}",
   "ov.pvf.chart": "Erwartete PV-Leistung heute und morgen",
   "ov.pvf.updated": "Stand {time} · pvnode",
