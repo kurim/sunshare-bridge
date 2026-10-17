@@ -68,6 +68,8 @@ export const en: Messages = {
   "ov.pvf.tomorrow": "Tomorrow",
   "ov.pvf.todayDetail": "So far {actual} · {rest} to go",
   "ov.pvf.todayRest": "{rest} still expected",
+  "ov.pvf.todayForecast": "pvnode forecast {kwh}",
+  "ov.pvf.progress": "{pct} of the expected daily yield reached",
   "ov.pvf.peak": "Peak {w} at {time}",
   "ov.pvf.chart": "Expected PV power today and tomorrow",
   "ov.pvf.updated": "As of {time} · pvnode",

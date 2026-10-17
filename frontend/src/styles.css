@@ -114,6 +114,7 @@ summary { cursor: pointer; }
 .hint.bad, .bad { color: var(--bad); }
 .tiles.compact { grid-template-columns: repeat(auto-fit, minmax(6.4rem, 1fr)); gap: .5rem; }
 .tiles.compact .tile strong { font-size: 1.15rem; }
+.tiles.compact .tile .bar { height: .4rem; margin: .35rem 0 .25rem; }
 
 .toggles { display: grid; gap: .1rem; margin: .5rem 0; }
 .toggle { display: flex; align-items: center; gap: .7rem; padding: .6rem .2rem; border-top: 1px solid var(--line); cursor: pointer; }
