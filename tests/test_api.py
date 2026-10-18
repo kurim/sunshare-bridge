@@ -103,3 +103,13 @@ def test_raw_log_endpoints():
         assert await (await client.get("/api/raw")).json() == []
 
     _run(check)
+
+
+def test_day_endpoints():
+    async def go(client):
+        body = await (await client.get("/api/days")).json()
+        assert isinstance(body["days"], list) and "retention_days" in body
+        day = await (await client.get("/api/days/2026-10-17")).json()
+        assert day["day"] == "2026-10-17" and day["fc_series"] == [] and "rows" in day["history"]
+        assert (await client.get("/api/days/gestern")).status == 400
+    _run(go)

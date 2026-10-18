@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Reading } from "./api.ts";
-import { actualSeries, todayProgress, todayYield } from "./lib.ts";
+import { actualSeries, forecastResult, todayProgress, todayYield } from "./lib.ts";
 
 const row = (r: Partial<Reading>): Reading => r as Reading;
 
@@ -37,4 +37,13 @@ test("todayProgress has no value without both numbers or before anything is expe
   assert.equal(todayProgress(null, 1), null);
   assert.equal(todayProgress(1, null), null);
   assert.equal(todayProgress(0, 0), null);
+});
+
+test("forecastResult: within 10 % is a hit, beyond it over or under, nothing without a forecast", () => {
+  assert.equal(forecastResult(5.4, 5), "hit");
+  assert.equal(forecastResult(4.6, 5), "hit");
+  assert.equal(forecastResult(5.6, 5), "over");
+  assert.equal(forecastResult(4.4, 5), "under");
+  assert.equal(forecastResult(3, null), null);
+  assert.equal(forecastResult(3, 0), null);
 });

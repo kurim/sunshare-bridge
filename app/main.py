@@ -20,6 +20,7 @@ import os
 import signal
 import time
 from collections.abc import Callable
+from datetime import date
 
 import aiohttp
 from aiohttp import web
@@ -104,6 +105,16 @@ def make_ui_app(
         except ValueError:
             return web.json_response({"error": "minutes must be an integer"}, status=400)
         return web.json_response(STATE.db.query(minutes))
+
+    async def get_days(request: web.Request) -> web.Response:
+        return web.json_response({"enabled": STATE.db.enabled, "retention_days": STATE.db.retention_days, "days": STATE.db.days()})
+
+    async def get_day(request: web.Request) -> web.Response:
+        try:
+            day = date.fromisoformat(request.match_info["day"])
+        except ValueError:
+            return web.json_response({"error": "day must be YYYY-MM-DD"}, status=400)
+        return web.json_response(STATE.db.day(day))
 
     async def stream(request: web.Request) -> web.StreamResponse:
         """Server-Sent Events: pushes a {"mode", "reading"} payload the instant
@@ -227,6 +238,8 @@ def make_ui_app(
     app.router.add_get("/api/state", get_state)
     app.router.add_get("/api/history", get_history)
     app.router.add_get("/api/history/long", get_history_long)
+    app.router.add_get("/api/days", get_days)
+    app.router.add_get("/api/days/{day}", get_day)
     app.router.add_get("/api/stream", stream)
     auth_mod.add_routes(app, auth)
     spa.add_routes(app, web_dir)
@@ -292,9 +305,13 @@ async def weather_poll_loop(weather: WeatherClient, interval: float) -> None:
 async def pvforecast_poll_loop(forecast: PvForecastClient) -> None:
     """No-ops (see PvForecastClient.available) unless PVNODE_API_KEY/PVNODE_SITE_ID are both set;
     the client itself decides when a request is due, so a restart does not spend the monthly quota."""
+    stored_at = None
     while True:
         try:
             await forecast.poll()
+            if forecast.series and forecast.updated_at != stored_at:  # also the cached answer after a restart
+                STATE.db.set_forecast(forecast.days())
+                stored_at = forecast.updated_at
         except Exception:  # noqa: BLE001
             _LOGGER.exception("PV forecast poll failed")
         await asyncio.sleep(60)

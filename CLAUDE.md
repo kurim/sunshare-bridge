@@ -18,7 +18,7 @@ Interpretation dort nachziehen.
 | `mqtt_publisher.py` | State-Topic + HA-Discovery (`_SENSORS`) |
 | `grid_control.py` | Nulleinspeisungs-Regler + Batterie-Plan; Parameter (`PLAN_SETTINGS`) zur Laufzeit änderbar, in `data/settings.db` gespeichert |
 | `settings_db.py` | SQLite-Speicher (`data/settings.db`) für alles, was in der UI geändert wurde: nur Abweichungen von den `.env`-/Add-on-Defaults (Vorrang vor diesen), Transaktion pro Speichern; ersetzt das frühere `control.json` (wird einmal importiert und zu `.migrated` umbenannt) |
-| `history_db.py` | Langzeit-Verlauf: ein Ø-Wert/Minute in SQLite (`data/history.db`), Migration fehlender Spalten |
+| `history_db.py` | Langzeit-Verlauf: ein Ø-Wert/Minute in SQLite (`data/history.db`), Migration fehlender Spalten; Tabelle `days` (Ertrag, Akku voll, Prognose je Tag) für die Seite „Historie“ (`/api/days`) |
 | `debug_log.py` | Flüchtiger Ringpuffer der Regler-Entscheidungen (Zähler-Werte, Regelschritte samt Eingangswerten, Schreibzugriffe, Phasenwechsel …) für den Tab „Debug“ (`/api/debug`); Einträge = `Msg` + Zahlen (`ctx`), neue Ereignisarten in `KINDS` + `dbg.kind.*` in `de.ts`/`en.ts` |
 | `pvforecast.py` | Optionale PV-Ertragsprognose von pvnode (API v2, `PVNODE_API_KEY`/`PVNODE_SITE_ID`): kWh heute/morgen + 15-Minuten-Kurve für die Dashboard-Karte (`/api/pvforecast`), Antwort in `data/pvforecast.json` zwischengespeichert (kostenloser Tarif ≈ 250 Anfragen/Monat), rein informativ – der Regler nutzt sie nicht |
 | `raw_log.py` | Flüchtiger Ringpuffer der rohen Geräte-Pushes (`/raw`) |

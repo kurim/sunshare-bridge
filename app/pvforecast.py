@@ -190,6 +190,18 @@ class PvForecastClient:
         self._next_at = now + self.interval
         self._save_cache()
 
+    def days(self) -> dict[str, tuple[float, list[list[int]]]]:
+        """The curve split into local days (forecast's timezone): {"YYYY-MM-DD": (kWh, [[epoch s, W], ...])},
+        stored by the History page so each day keeps the forecast it was compared with."""
+        zone, step = _zone(self.timezone), _step_s(self.series)
+        out: dict[str, list[tuple[float, float]]] = {}
+        for t, w in self.series:
+            out.setdefault(datetime.fromtimestamp(t, zone).date().isoformat(), []).append((t, w))
+        return {
+            d: (round(sum(w for _, w in pts) * step / 3600 / 1000, 2), [[int(t), round(w)] for t, w in pts])
+            for d, pts in out.items()
+        }
+
     # ---- view --------------------------------------------------------------------------------
     def status(self, now: float | None = None) -> dict[str, Any]:
         now = time.time() if now is None else now
