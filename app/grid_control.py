@@ -220,6 +220,7 @@ class GridController:
         self._db = SettingsDB()
         saved = self._load()
         self._apply_stored_settings(saved.get("settings") or {})
+        STATE.db.full_soc = self.full_soc  # also without stored settings (env value)
         # settings()["CHARGE_RESERVE_W"] (just applied above) is the baseline, not a live export-guard
         # raise (see settings()'s docstring) - restore that live value separately, so an active raise
         # still survives a restart instead of snapping back to the baseline.
@@ -401,6 +402,7 @@ class GridController:
         for attr, value in parsed.items():
             setattr(self, attr, value)
         STATE.meter_max_age_s = self.meter_max_age_s
+        STATE.db.full_soc = self.full_soc
 
     def _writes_allowed(self) -> bool:
         return self.enabled and not self.dry_run

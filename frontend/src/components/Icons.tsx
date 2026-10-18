@@ -18,6 +18,9 @@ const PATHS = {
   pause: <path d="M8 5v14M16 5v14" />,
   bolt: <path d="M13 2L4 14h7l-1 8 9-12h-7z" />,
   arrowDown: <path d="M12 4v16M6 14l6 6 6-6" />,
+  arrowUp: <path d="M12 20V4M6 10l6-6 6 6" />,
+  check: <path d="M5 12.5l4.5 4.5L19 7" />,
+  history: <><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></>,
   logout: <><path d="M9 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4" /><path d="M16 8l4 4-4 4M20 12H9" /></>,
   cloud: <path d="M6.5 19a4.5 4.5 0 0 1-.4-8.98 5.5 5.5 0 0 1 10.6-1.94A4 4 0 0 1 17.5 16H7z" />,
 } as const;

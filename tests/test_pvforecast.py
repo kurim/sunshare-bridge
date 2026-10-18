@@ -245,3 +245,12 @@ def test_the_api_key_never_appears_in_the_status_or_the_error(tmp_path):
     c = PvForecastClient(FakeSession({}, status=401), "s3cr3t-key", "site-1", cache_file=tmp_path / "c.json")
     asyncio.run(c.poll())
     assert "s3cr3t-key" not in json.dumps(c.status()) and "s3cr3t-key" not in str(c.error)
+
+
+def test_days_split_the_curve_by_local_day(tmp_path):
+    c = _client(tmp_path, None)
+    _fill(c, _ts(1, 12))
+    days = c.days()
+    assert sorted(days) == ["2026-06-01", "2026-06-02"]
+    kwh, series = days["2026-06-01"]
+    assert kwh == 8.0 and len(series) == 96 and series[0] == [int(_ts(1, 0)), 0]

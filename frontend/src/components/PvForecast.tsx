@@ -16,7 +16,7 @@ function niceMax(w: number): number {
 
 /** Expected PV power over today and tomorrow (see app/pvforecast.py); the bridge sends the whole
  * curve, so nothing is asked of pvnode when this is drawn or when "now" moves. */
-function ForecastChart({ series, actual, stepS, label, height: H }: {
+export function ForecastChart({ series, actual, stepS, label, height: H }: {
   series: [number, number][]; actual: [number, number][]; stepS: number; label: string; height: number;
 }) {
   const t = useT();

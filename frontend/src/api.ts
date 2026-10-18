@@ -202,6 +202,26 @@ export type HistorySpec = { minutes: number } | { range: "today" | "yesterday" }
 export const getHistoryLong = (spec: HistorySpec) =>
   api<HistoryLong>(`/api/history/long?${"minutes" in spec ? `minutes=${spec.minutes}` : `range=${spec.range}`}`);
 
+/** One recorded local day (app/history_db.py): PV yield (booked pvPow), first time the battery was full
+ * (epoch s, null = never) and the forecast stored for it (null without pvnode). */
+export interface DaySummary {
+  day: string;
+  pv_kwh: number | null;
+  full_at: number | null;
+  fc_kwh: number | null;
+}
+export interface DayList {
+  enabled: boolean;
+  retention_days: number;
+  days: DaySummary[];
+}
+export interface DayDetail extends DaySummary {
+  fc_series: [number, number][];
+  history: HistoryLong;
+}
+export const getDays = () => api<DayList>("/api/days");
+export const getDay = (day: string) => api<DayDetail>(`/api/days/${day}`);
+
 /** One push of the inverter to the telemetry endpoint, byte-for-byte (the bridge redacts auth headers). */
 export interface RawEntry {
   id: number;

@@ -88,3 +88,30 @@ def test_unwritable_location_disables_history_without_raising(tmp_path):
     assert not db.enabled
     db.add(time.time(), {"pvPow": 1})
     assert db.query(60)["rows"] == []
+
+
+def test_days_sum_the_yield_and_note_when_the_battery_was_first_full(tmp_path):
+    db = _db(tmp_path)
+    db.full_soc = 95
+    t = int(time.time()) // 86400 * 86400 - 3 * 86400 + 12 * 3600  # some noon a few days ago
+    for m, soc in enumerate((90, 96, 99, 94)):
+        db.add(t + m * 60 + 1, {"pvPow": 600, "soc": soc})
+    db.add(t + 4 * 60 + 1, {"pvPow": 600})  # flushes the 4th minute
+    day = time.strftime("%Y-%m-%d", time.localtime(t))
+    [row] = db.days()
+    assert row["day"] == day and row["pv_kwh"] == 0.04 and row["full_at"] == t + 60 and row["fc_kwh"] is None
+
+    db.set_forecast({day: (0.05, [[t, 600]])})
+    detail = db.day(__import__("datetime").date.fromisoformat(day))
+    assert detail["fc_kwh"] == 0.05 and detail["fc_series"] == [[t, 600]]
+    assert [r["_t"] for r in detail["history"]["rows"]] == [t + m * 60 for m in range(4)]
+
+
+def test_days_are_rebuilt_from_older_samples(tmp_path):
+    db = _db(tmp_path)
+    t = int(time.time()) // 60 * 60 - 7200
+    db.add(t + 1, {"pvPow": 1200})
+    db.add(t + 61, {"pvPow": 1})
+    db._conn.execute("DELETE FROM days")
+    db._conn.commit()
+    assert _db(tmp_path).days()[0]["pv_kwh"] == 0.02  # 1200 W for a minute = 20 Wh

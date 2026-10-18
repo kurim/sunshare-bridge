@@ -90,6 +90,15 @@ export function todayProgress(actualKwh: number | null, restKwh: number | null):
   return total > 0 ? done / total : null;
 }
 
+/** How a finished day's PV yield compares with its forecast: within ±`tolerance` of it = "hit".
+ * null without a forecast. */
+export type ForecastResult = "hit" | "over" | "under";
+export function forecastResult(pvKwh: number | null, fcKwh: number | null, tolerance = 0.1): ForecastResult | null {
+  if (pvKwh == null || fcKwh == null || fcKwh <= 0) return null;
+  const ratio = pvKwh / fcKwh;
+  return ratio > 1 + tolerance ? "over" : ratio < 1 - tolerance ? "under" : "hit";
+}
+
 export function actualSeries(rows: Reading[] | undefined): [number, number][] {
   const out: [number, number][] = [];
   for (const r of rows ?? []) {

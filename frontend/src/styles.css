@@ -181,6 +181,17 @@ input[aria-invalid="true"] { border-color: var(--bad); }
 .ranges button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #111; font-weight: 600; }
 .ranges button[disabled] { opacity: .45; cursor: default; }
 .ranges .smooth { margin-left: auto; }
+/* History: one button per recorded day, coloured by how the yield met the forecast (--day-c) */
+.day-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(6.2rem, 1fr)); gap: .4rem; margin-top: .6rem; max-height: 15rem; overflow-y: auto; }
+.day { font: inherit; display: flex; flex-direction: column; align-items: flex-start; gap: .1rem; padding: .4rem .55rem; border-radius: 10px;
+  border: 1px solid var(--line); border-left: 4px solid var(--day-c, var(--line)); background: var(--card); color: var(--text); cursor: pointer; text-align: left; }
+.day[aria-pressed="true"] { border-color: var(--accent); border-left-color: var(--day-c, var(--accent)); box-shadow: 0 0 0 1px var(--accent); }
+.day-date { font-size: .75rem; color: var(--muted); }
+.day-val { display: inline-flex; align-items: center; gap: .25rem; font-weight: 600; font-size: .9rem; white-space: nowrap; }
+.day-val .icon { width: 1rem; height: 1rem; color: var(--day-c, var(--muted)); }
+.day-legend { margin-top: .5rem; }
+.day-legend .icon { width: 1rem; height: 1rem; }
+.day-title { margin: 0 0 .6rem; }
 .flow-grid { display: grid; gap: .75rem; margin-bottom: .75rem; }
 .flow-grid > .card, .flow-side > .card { margin-bottom: 0; }
 .flow-side { display: grid; gap: .75rem; }

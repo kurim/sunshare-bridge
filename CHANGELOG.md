@@ -3,6 +3,21 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [2026.10.0] - 2026-10-18
+
+Ab dieser Version: Versionierung JAHR.MONAT.PATCH.
+
+### Bridge
+
+- Neuer Menüpunkt **Historie** (`/app/history`): alle gespeicherten Tage zur Auswahl, jeder farbig und mit Symbol
+  markiert, ob der PV-Ertrag die pvnode-Prognose erreicht (±10 %), übertroffen oder nicht erreicht hat. Pro Tag:
+  Ertrag, Prognose mit Abweichung, Uhrzeit, zu der der Akku erstmals voll war (`CHARGE_FULL_SOC`), Leistungs- und
+  SOC-Verlauf sowie die Prognose-Kurve gegen den echten Ertrag.
+- `history.db` hat dafür eine Tabelle `days` (Ertrag aus `pvPow`, „Akku voll“, letzte Prognose samt Kurve je Tag). Sie
+  wird nicht ausgedünnt und beim ersten Start aus den vorhandenen Minutenwerten nachgefüllt; die Prognose wird ab jetzt
+  bei jeder neuen pvnode-Antwort mitgeschrieben (nur wenn pvnode aktiv ist). Neue Endpunkte `/api/days` und
+  `/api/days/<JJJJ-MM-TT>`.
+
 ## [1.2.3] - 2026-10-16
 
 ### Bridge

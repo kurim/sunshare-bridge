@@ -5,6 +5,7 @@ import { ThemeToggle } from "./components/ThemeToggle";
 import { Control } from "./Control";
 import { Debug } from "./Debug";
 import { Flow } from "./Flow";
+import { History } from "./History";
 import { useNow } from "./hooks";
 import { I18nProvider, LANGUAGES, useI18n, type Key, type Lang } from "./i18n";
 import { LiveProvider, useLiveData } from "./live";
@@ -18,6 +19,7 @@ import { Telemetry } from "./Telemetry";
 const TABS: { to: string; label: Key; icon: IconName }[] = [
   { to: "/", label: "nav.overview", icon: "overview" },
   { to: "/flow", label: "nav.flow", icon: "flow" },
+  { to: "/history", label: "nav.history", icon: "history" },
   { to: "/telemetry", label: "nav.telemetry", icon: "telemetry" },
   { to: "/control", label: "nav.control", icon: "control" },
   { to: "/raw", label: "nav.raw", icon: "raw" },
@@ -27,6 +29,7 @@ const TABS: { to: string; label: Key; icon: IconName }[] = [
 function Page({ path, onSessionEnded }: { path: string; onSessionEnded: () => void }) {
   switch (path) {
     case "/flow": return <Flow />;
+    case "/history": return <History />;
     case "/telemetry": return <Telemetry />;
     case "/control": return <Control />;
     case "/raw": return <Raw onSessionEnded={onSessionEnded} />;
