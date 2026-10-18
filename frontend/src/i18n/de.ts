@@ -451,6 +451,12 @@ export const de = {
 
   "hi.title": "Historie",
   "hi.subtitle": "Tag wählen · Ertrag gegen die pvnode-Prognose (±10 % = erreicht) · Verlauf und wann der Akku voll war",
+  "hi.prevMonth": "Vorheriger Monat",
+  "hi.nextMonth": "Nächster Monat",
+  "hi.month.reached": "Erreicht {kwh}",
+  "hi.month.expected": "erwartet {kwh}",
+  "hi.month.noForecast": "keine Prognose gespeichert",
+  "hi.month.coverage": "Prognose für {n} von {of} Tagen",
   "hi.pick": "Tag",
   "hi.failed": "Tage konnten nicht geladen werden",
   "hi.empty": "noch keine Tage gespeichert – es wird jede Minute ein Wert gespeichert",

@@ -5,7 +5,7 @@ import { Icon, type IconName } from "./components/Icons";
 import { ForecastChart } from "./components/PvForecast";
 import { fmt } from "./format";
 import { LANGUAGES, useI18n, useT, type Key } from "./i18n";
-import { actualSeries, forecastResult, hm, type ForecastResult } from "./lib";
+import { actualSeries, forecastResult, hm, monthTotal, type ForecastResult } from "./lib";
 import { useLiveData } from "./live";
 
 const RESULT: Record<ForecastResult, { icon: IconName; color: string; label: Key }> = {
@@ -69,7 +69,14 @@ export function History() {
     return () => { cancelled = true; clearInterval(id); };
   }, []);
 
-  const shown = day ?? list?.days[0]?.day ?? null;
+  // newest first, like the days
+  const months = useMemo(() => [...new Set((list?.days ?? []).map((d) => d.day.slice(0, 7)))], [list]);
+  const [month, setMonth] = useState<string | null>(null);
+  const shownMonth = month && months.includes(month) ? month : months[0] ?? null;
+  const monthIdx = shownMonth ? months.indexOf(shownMonth) : -1;
+  const monthDays = useMemo(() => (list?.days ?? []).filter((d) => d.day.startsWith(shownMonth ?? "-")), [list, shownMonth]);
+  const total = monthTotal(monthDays);
+  const shown = day && day.startsWith(shownMonth ?? "-") ? day : monthDays[0]?.day ?? null;
   useEffect(() => {
     setDetail(null);
     if (!shown) return;
@@ -105,10 +112,23 @@ export function History() {
         {failed && <p className="error" role="alert">{t("hi.failed")}</p>}
         {list && !list.enabled && <p className="hint">{t("fl.empty.disabled")}</p>}
         {list?.enabled && !list.days.length && <p className="hint">{t("hi.empty")}</p>}
-        {list && list.days.length > 0 && (
+        {shownMonth && (
           <>
+            <div className="month-nav">
+              <button type="button" className="link with-icon" disabled={monthIdx >= months.length - 1}
+                onClick={() => setMonth(months[monthIdx + 1])} aria-label={t("hi.prevMonth")}>‹</button>
+              <h3>{dateOf(`${shownMonth}-01`).toLocaleDateString(LANGUAGES[lang].tag, { month: "long", year: "numeric" })}</h3>
+              <button type="button" className="link with-icon" disabled={monthIdx <= 0}
+                onClick={() => setMonth(months[monthIdx - 1])} aria-label={t("hi.nextMonth")}>›</button>
+            </div>
+            <p className="month-total">
+              {t("hi.month.reached", { kwh: fmt(total.pvKwh, "kWh", 1) })}
+              {" · "}
+              {total.fcDays ? t("hi.month.expected", { kwh: fmt(total.fcKwh, "kWh", 1) }) : t("hi.month.noForecast")}
+              {total.fcDays > 0 && total.fcDays < total.days && <span className="hint"> ({t("hi.month.coverage", { n: total.fcDays, of: total.days })})</span>}
+            </p>
             <div className="day-list" role="group" aria-label={t("hi.pick")}>
-              {list.days.map((d) => <DayButton key={d.day} d={d} selected={d.day === shown} onPick={() => setDay(d.day)} />)}
+              {monthDays.map((d) => <DayButton key={d.day} d={d} selected={d.day === shown} onPick={() => setDay(d.day)} />)}
             </div>
             <div className="legend day-legend">
               {(Object.keys(RESULT) as ForecastResult[]).map((k) => (
