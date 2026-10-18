@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Reading } from "./api.ts";
-import { actualSeries, forecastResult, todayProgress, todayYield } from "./lib.ts";
+import { actualSeries, forecastResult, monthTotal, todayProgress, todayYield } from "./lib.ts";
 
 const row = (r: Partial<Reading>): Reading => r as Reading;
 
@@ -46,4 +46,9 @@ test("forecastResult: within 10 % is a hit, beyond it over or under, nothing wit
   assert.equal(forecastResult(4.4, 5), "under");
   assert.equal(forecastResult(3, null), null);
   assert.equal(forecastResult(3, 0), null);
+});
+
+test("monthTotal sums every day's yield and only the forecasts that exist", () => {
+  const t = monthTotal([{ pv_kwh: 2, fc_kwh: 3 }, { pv_kwh: 1.5, fc_kwh: null }, { pv_kwh: null, fc_kwh: 1 }]);
+  assert.deepEqual(t, { pvKwh: 3.5, fcKwh: 4, fcDays: 2, days: 3 });
 });

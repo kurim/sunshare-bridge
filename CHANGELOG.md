@@ -3,6 +3,14 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [2026.10.1] - 2026-10-18
+
+### Bridge
+
+- Historie: Die Tagesauswahl zeigt nur noch einen Monat (zuerst den aktuellen), mit Knöpfen ‹ › zum vorherigen und
+  nächsten Monat. Darüber steht die Monatssumme: erreicht (alle Tage) gegen erwartet (Tage mit gespeicherter
+  Prognose; fehlt sie an einzelnen Tagen, steht dabei, für wie viele). Nur Frontend.
+
 ## [2026.10.0] - 2026-10-18
 
 Ab dieser Version: Versionierung JAHR.MONAT.PATCH.

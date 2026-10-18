@@ -99,6 +99,16 @@ export function forecastResult(pvKwh: number | null, fcKwh: number | null, toler
   return ratio > 1 + tolerance ? "over" : ratio < 1 - tolerance ? "under" : "hit";
 }
 
+/** A month's sums for the History page: yield of every recorded day, forecast of the days that have one. */
+export function monthTotal(days: { pv_kwh: number | null; fc_kwh: number | null }[]) {
+  let pvKwh = 0, fcKwh = 0, fcDays = 0;
+  for (const d of days) {
+    pvKwh += d.pv_kwh ?? 0;
+    if (d.fc_kwh != null) { fcKwh += d.fc_kwh; fcDays += 1; }
+  }
+  return { pvKwh, fcKwh, fcDays, days: days.length };
+}
+
 export function actualSeries(rows: Reading[] | undefined): [number, number][] {
   const out: [number, number][] = [];
   for (const r of rows ?? []) {
