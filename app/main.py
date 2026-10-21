@@ -36,7 +36,7 @@ from .lan_proxy import make_app as make_lan_app
 from .models import normalize_cloud, normalize_energy_summary
 from .mqtt_publisher import MqttPublisher
 from .debug_log import DEBUG
-from .pvforecast import DEFAULT_POLL_S, PvForecastClient
+from .pvforecast import DEFAULT_MONTHLY_LIMIT, DEFAULT_POLL_S, PvForecastClient
 from .raw_log import RAW
 from .state import STATE
 from .sunshare_cloud import SunshareCloudClient, SunshareLoginError, guest_from_env
@@ -400,6 +400,7 @@ async def main() -> None:
         pvforecast = PvForecastClient(
             session, os.environ.get("PVNODE_API_KEY") or None, os.environ.get("PVNODE_SITE_ID") or None,
             float(os.environ.get("PVNODE_POLL_INTERVAL") or DEFAULT_POLL_S),
+            monthly_limit=int(os.environ.get("PVNODE_MONTHLY_LIMIT") or DEFAULT_MONTHLY_LIMIT),
         )
         ui_runner = web.AppRunner(
             make_ui_app(controller, Auth.from_env(), weather=weather, pvforecast=pvforecast), access_log=None,
