@@ -1,6 +1,6 @@
 # Sunshare Bridge – Projektkontext
 
-Docker-Container (Python 3.12, aiohttp, paho-mqtt; UI: React/TypeScript in `frontend/`), der die Live-Daten eines Sunshare-Mikro-Wechselrichters mit
+Docker-Container (Python 3.15, aiohttp, paho-mqtt; UI: React/TypeScript in `frontend/`), der die Live-Daten eines Sunshare-Mikro-Wechselrichters mit
 Batterie ausliest (Cloud-Poll oder LAN-Push-Proxy), per MQTT mit Home-Assistant-Discovery veröffentlicht und eine
 Web-UI, einen Langzeit-Verlauf und einen Nulleinspeisungs-Regler bietet. Nutzer-Doku: `README.md`. Gerätewissen
 (Endpunkte, Datenfelder, empirische Erkenntnisse, Sackgassen): `docs/DEVICE_NOTES.md` – bei Änderungen an der Feld-

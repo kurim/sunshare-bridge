@@ -3,7 +3,7 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
-## [2026.10.2] - 2026-10-21
+## [2026.10.3] - 2026-10-23
 
 ### Bridge
 
@@ -13,6 +13,19 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Forma
   Kontingent in wenigen Tagen zu verbrauchen. Ist das Limit erreicht oder antwortet pvnode mit 429, fragt die Bridge
   erst im nächsten Monat wieder (bis dahin bleibt die letzte Prognose stehen). Ein Neustart nach einer
   fehlgeschlagenen Anfrage fragt nicht sofort neu.
+
+## [2026.10.2] - 2026-10-23
+
+### Bridge
+
+- Regler: Fällt die PV-Leistung zwischen zwei Zählerwerten unter den gesetzten Ausgang, hielt das Gerät den Wert bis
+  zum nächsten Zählerwert und der Akku deckte die Lücke (gemeldet: PV 163 W, Ausgang 217 W, Akku entlädt 54 W bei
+  16 %). Jetzt prüft jeder neue PV-Messwert die Grenze des Batterie-Plans und senkt einen zu hohen Ausgang sofort
+  (höchstens alle 20 s, Debug-Eintrag „ohne Zählerwert reduziert“).
+- Sicherheitsupdates im Frontend-Build (`npm audit fix`): Vite 8.3.x und `source-map-js` (betrifft nur Dev-Server/Build,
+  nicht die ausgelieferte App).
+- Basis-Images angehoben: `python:3.15-slim` (vorher 3.12) und `node:24-alpine` (LTS, vorher 22, mit den
+  Node-Sicherheitsupdates vom Oktober 2026); CI nutzt dieselben Versionen.
 
 ## [2026.10.1] - 2026-10-18
 

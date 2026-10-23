@@ -75,6 +75,7 @@ class SharedState:
         self.history: deque[dict[str, Any]] = deque(maxlen=HISTORY_MAXLEN)
         self._pv_samples: deque[tuple[float, float]] = deque()  # (time, PV supply, see pv_supply) of the last PV_SAMPLES_KEEP_S
         self.lock = asyncio.Lock()
+        self.new_pv = asyncio.Event()  # set on every fresh PV sample (the grid controller checks its cap on it)
         self.meter_w: float | None = None  # external grid meter (set by the grid controller), + = import
         self.meter_t: float | None = None
         self.meter_max_age_s: float = METER_MAX_AGE_S  # kept in sync with the controller's setting
@@ -212,6 +213,7 @@ class SharedState:
                 supply = pv_supply(reading)
                 if supply is not None:
                     self._pv_samples.append((now, supply))
+                    self.new_pv.set()
                     while self._pv_samples and now - self._pv_samples[0][0] > PV_SAMPLES_KEEP_S:
                         self._pv_samples.popleft()
                 self._integrate_energy(

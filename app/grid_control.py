@@ -268,6 +268,8 @@ class GridController:
         self._config_seen = False
         self._last_payload: str | None = None  # raw text of the last message on the state topic
         self._new_meter = asyncio.Event()
+        self._busy = asyncio.Lock()  # a meter step and a PV-drop check must not interleave around their awaits
+        self._pv_task: asyncio.Task | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._mqtt: mqtt.Client | None = None
 
@@ -684,20 +686,58 @@ class GridController:
             "Grid controller started (enabled=%s dry_run=%s, config topic %s)",
             self.enabled, self.dry_run, self.config_topic,
         )
+        self._pv_task = asyncio.create_task(self._watch_pv())
         while True:
             try:
                 await asyncio.wait_for(self._new_meter.wait(), timeout=self.meter_max_age_s)
             except asyncio.TimeoutError:
-                await self._failsafe()
+                async with self._busy:
+                    await self._failsafe()
                 continue
             self._new_meter.clear()
-            self._wrote = False
-            self._ctx = {}
-            try:
-                await self._step()
-                self._log_step()
-            except Exception:
-                _LOGGER.exception("Grid control step failed")
+            async with self._busy:
+                self._wrote = False
+                self._ctx = {}
+                try:
+                    await self._step()
+                    self._log_step()
+                except Exception:
+                    _LOGGER.exception("Grid control step failed")
+
+    async def _watch_pv(self) -> None:
+        while True:
+            await STATE.new_pv.wait()
+            STATE.new_pv.clear()
+            async with self._busy:
+                try:
+                    await self._pv_drop()
+                except Exception:
+                    _LOGGER.exception("PV drop check failed")
+
+    async def _pv_drop(self) -> None:
+        """The loop only runs on meter samples, but the device holds its setpoint in between: when the PV
+        falls below it, the battery covers the gap until the next sample (field report: PV 163 W, output
+        217 W, battery discharging 54 W at 16 %). So every fresh PV sample re-checks the plan's cap and pulls
+        an over-cap setpoint down at once - the same pull-down as in `_step`, just without waiting for the
+        meter. At most once per REDUCE_LOCKOUT_S, so a write still taking effect is not chased."""
+        if not self.enabled or not self.plan_enabled or self.setpoint is None:
+            return
+        now = time.time()
+        if now - self._last_write_t < REDUCE_LOCKOUT_S:
+            return
+        latest = STATE.latest or {}
+        plan = self._plan_cap(latest, now)
+        if plan is None:
+            return
+        cap = min(plan[1], self.max_w)
+        if self.setpoint <= cap or (cap > 0 and self.setpoint <= cap + self.deadband_w):
+            return
+        self.phase = plan[0]
+        self._limit_since = None
+        self._prev_error = None  # not a meter-driven correction: nothing to grade the gain on
+        self._wrote = False
+        self._ctx = {"setpoint": self.setpoint, **self._live(), "cap": cap}
+        await self._apply(cap, Msg("why.pv_drop", pv=_r(pv_supply(latest)), cap=cap))
 
     def _night_cap(self, soc: float, now: float) -> tuple[Msg, int] | None:
         """(phase message, max output watts) if `now` falls in the night window, else None. Split out of
