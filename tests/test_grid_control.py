@@ -1,10 +1,11 @@
 import asyncio
+from collections import deque
 from unittest import mock
 
 import pytest
 
 import app.state as st
-from app.grid_control import GridController, _in_window, _parse_hm
+from app.grid_control import REDUCE_LOCKOUT_S, GridController, _in_window, _parse_hm
 from app.messages import Msg, MsgError
 
 
@@ -1132,3 +1133,41 @@ def test_the_raise_is_not_eased_right_after_an_export_raised_it():
     before = c.charge_reserve_w
     c._guard_against_export(300.0, 1000.0 + 10)  # let the raise take effect first
     assert c.charge_reserve_w == before
+
+
+# ---- PV falls between two meter samples ---------------------------------------------------
+
+def _pv_drop_controller(client, monkeypatch, pv, setpoint=217):
+    c = _ctl(client)
+    asyncio.run(c.configure(enabled=True, dry_run=False))
+    c.setpoint = setpoint
+    _, noon = _day(soc=16, pv=pv)
+    monkeypatch.setattr(st.STATE, "latest", {"soc": 16, "pvPreal": pv, "invPow": setpoint, "_power_t": noon})
+    monkeypatch.setattr(st.STATE, "_pv_samples", deque([(noon, pv)]))
+    return c, noon
+
+
+def test_pv_drop_pulls_the_output_down_without_waiting_for_the_meter(monkeypatch):
+    """Field report: PV dipped to 163 W between two meter samples, the device kept its 217 W and the
+    battery (16 %) discharged 54 W until the next sample."""
+    client = RecordingClient()
+    c, noon = _pv_drop_controller(client, monkeypatch, pv=163)
+    with mock.patch("time.time", return_value=noon):
+        asyncio.run(c._pv_drop())
+    assert client.outputs[-1] < 163 and c.setpoint == client.outputs[-1]
+    assert c.last_action.key == "act.set" and c.last_action.params["why"].key == "why.pv_drop"
+
+
+def test_pv_drop_leaves_a_covered_output_and_a_fresh_write_alone(monkeypatch):
+    client = RecordingClient()
+    c, noon = _pv_drop_controller(client, monkeypatch, pv=1000)
+    before = list(client.outputs)
+    with mock.patch("time.time", return_value=noon):
+        asyncio.run(c._pv_drop())  # PV covers the output and the reserve: nothing to do
+    assert client.outputs == before
+    c2, _ = _pv_drop_controller(client, monkeypatch, pv=163)
+    before = list(client.outputs)
+    c2._last_write_t = noon - REDUCE_LOCKOUT_S + 1  # the last write may still be taking effect
+    with mock.patch("time.time", return_value=noon):
+        asyncio.run(c2._pv_drop())
+    assert client.outputs == before and c.setpoint == 217 and c2.setpoint == 217

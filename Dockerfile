@@ -1,5 +1,5 @@
 # Stage 1: build the React UI (Node is only needed here, not at runtime).
-FROM node:22-alpine AS ui
+FROM node:24-alpine AS ui
 WORKDIR /ui
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-fund --no-audit
@@ -11,7 +11,7 @@ COPY frontend/src ./src
 RUN npm run build
 
 # Stage 2: the bridge.
-FROM python:3.12-slim
+FROM python:3.15-slim
 
 WORKDIR /app
 

@@ -375,6 +375,7 @@ export const en: Messages = {
   "msg.why.control": "meter {meter} W, inverter {inv} W, limit {cap} W",
   "msg.why.control_fast": "meter {meter} W, inverter {inv} W, limit {cap} W – reduced without waiting for the interval",
   "msg.why.failsafe": "meter value stale, failsafe",
+  "msg.why.pv_drop": "PV {pv} W below the output, limit {cap} W – reduced without waiting for the meter",
   "msg.dev.guest": "Guest account: NIGHT_MIN_SOC is enforced by the bridge",
   "msg.dev.unreadable": "Device limits not readable",
   "msg.dev.already": "Device: discharge stop already {soc} %",
