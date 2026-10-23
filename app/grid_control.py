@@ -42,6 +42,7 @@ EXPORT_GUARD_DECAY_INTERVAL_S = 600  # how rarely the export guard's charge-rese
 EXPORT_GUARD_DECAY_STEP_W = 10  # ... and by how little each time, so it settles rather than hunts
 EXPORT_GUARD_RELAX_INTERVAL_S = 60  # while the house draws from the grid the raise gives way faster: once per this long
 REDUCE_LOCKOUT_S = 20  # after a write, a meter sample this much later may already pull the output down (see _step)
+PV_DROP_LOCKOUT_S = 3  # after a write, the PV-drop check (see _pv_drop) waits about one LAN push before writing again
 PV_FLOOR_WINDOW_S = 20  # look-back of the lowest-PV filter the day cap is sized from (see _pv_floor)
 LIMIT_RECHECK_S = 300  # how long "inverter delivers less than commanded" is trusted before the setpoint is re-sent
 LIMIT_UNEXPLAINED_S = 120  # ... when nothing in PV/battery explains it (see _limit_plausible): just a device-lag grace
@@ -722,11 +723,15 @@ class GridController:
         falls below it, the battery covers the gap until the next sample (field report: PV 163 W, output
         217 W, battery discharging 54 W at 16 %). So every fresh PV sample re-checks the plan's cap and pulls
         an over-cap setpoint down at once - the same pull-down as in `_step`, just without waiting for the
-        meter. At most once per REDUCE_LOCKOUT_S, so a write still taking effect is not chased."""
+        meter. It compares against the setpoint it wrote itself, not the inverter's reading, so a write still
+        taking effect cannot be chased and no long lockout is needed: a meter step that had just raised the
+        output into a falling PV (field report 23.10.: written at PV 277 W, PV down to 151 W 20 s later) used
+        to block this check for REDUCE_LOCKOUT_S while the battery discharged. In dry-run the setpoint never
+        changes, so there the long lockout keeps the debug log from a write every push."""
         if not self.enabled or not self.plan_enabled or self.setpoint is None:
             return
         now = time.time()
-        if now - self._last_write_t < REDUCE_LOCKOUT_S:
+        if now - self._last_write_t < (REDUCE_LOCKOUT_S if self.dry_run else PV_DROP_LOCKOUT_S):
             return
         latest = STATE.latest or {}
         plan = self._plan_cap(latest, now)
