@@ -3,6 +3,17 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [2026.10.3] - 2026-10-23
+
+### Bridge
+
+- pvnode: Die Bridge zählt ihre Anfragen pro Monat (auch fehlgeschlagene, gespeichert in `/data/pvforecast.json`) und
+  hält das Monatslimit ein, neu `PVNODE_MONTHLY_LIMIT` (Default 250 = kostenloser Tarif). Die verbleibenden Anfragen
+  werden über den Rest des Monats verteilt: ein zu kurzes `PVNODE_POLL_INTERVAL` bremst sich selbst, statt das
+  Kontingent in wenigen Tagen zu verbrauchen. Ist das Limit erreicht oder antwortet pvnode mit 429, fragt die Bridge
+  erst im nächsten Monat wieder (bis dahin bleibt die letzte Prognose stehen). Ein Neustart nach einer
+  fehlgeschlagenen Anfrage fragt nicht sofort neu.
+
 ## [2026.10.2] - 2026-10-23
 
 ### Bridge
