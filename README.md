@@ -349,7 +349,7 @@ Alles über `.env` (Vorlage: [`.env.example`](.env.example)). Wichtigste Variabl
 | `RAW_LOG_SIZE` | Größe des Roh-Log-Puffers (Default 500) |
 | `METER_CONFIG_TOPIC` / `METER_STATE_TOPIC` / `METER_VALUE_PATH` | Netzzähler für den Regler |
 | `CONTROL_*` | Regelparameter (Ziel, Totband, Verstärkung, Grenzen, Failsafe) |
-| Batterie-Plan (`BATTERY_CAPACITY_WH`, `CHARGE_*`, `NIGHT_*`), `CONTROL_METER_MAX_AGE` (Zähler-Frische) und `CONTROL_FALLBACK_W` (Failsafe-Ausgabe) | Defaults, im UI überschreibbar |
+| Batterie-Plan (`BATTERY_CAPACITY_WH`, `CHARGE_*`, `NIGHT_*`), `CONTROL_DEADBAND_W` (Totband, 5-100 W), `CONTROL_MIN_INTERVAL` (Regel-Takt, 60-120 s), `CONTROL_METER_MAX_AGE` (Zähler-Frische) und `CONTROL_FALLBACK_W` (Failsafe-Ausgabe) | Defaults, im UI überschreibbar |
 | `OWM_API_KEY`, `OWM_LAT`, `OWM_LON` | Optionale Wetter-Prognose (siehe oben); leer = Kachel bleibt weg |
 | `WEATHER_POLL_INTERVAL` | Abfrage-Intervall der Wetter-Prognose (Default 1800 s) |
 | `PVNODE_API_KEY`, `PVNODE_SITE_ID` | Optionale PV-Ertragsprognose von pvnode (siehe oben); leer = Karte bleibt weg |

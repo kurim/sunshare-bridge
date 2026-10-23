@@ -7,6 +7,11 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Forma
 
 ### Bridge
 
+- Regler: Das Totband (`CONTROL_DEADBAND_W`, wie weit der Zähler vom Zielwert abweichen darf, ohne dass nachgestellt
+  wird) ist jetzt im UI unter den Einstellungen änderbar (5-100 W, Standard weiterhin 25 W bzw. der Wert aus
+  `.env`/Add-on-Option) und wird wie die übrigen Einstellungen in `data/settings.db` gespeichert.
+- Einstellungen: Der Regel-Takt (`CONTROL_MIN_INTERVAL`, 60-120 s) war zwar im Backend änderbar, fehlte aber im
+  Formular – jetzt steht er dort.
 - pvnode: Die Bridge zählt ihre Anfragen pro Monat (auch fehlgeschlagene, gespeichert in `/data/pvforecast.json`) und
   hält das Monatslimit ein, neu `PVNODE_MONTHLY_LIMIT` (Default 250 = kostenloser Tarif). Die verbleibenden Anfragen
   werden über den Rest des Monats verteilt: ein zu kurzes `PVNODE_POLL_INTERVAL` bremst sich selbst, statt das
