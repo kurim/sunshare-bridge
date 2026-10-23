@@ -3,6 +3,14 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [2026.10.3] - 2026-10-23
+
+### Bridge
+
+- Regler: Das Totband (`CONTROL_DEADBAND_W`, wie weit der Zähler vom Zielwert abweichen darf, ohne dass nachgestellt
+  wird) ist jetzt im UI unter den Einstellungen änderbar (5-100 W, Standard weiterhin 25 W bzw. der Wert aus
+  `.env`/Add-on-Option) und wird wie die übrigen Einstellungen in `data/settings.db` gespeichert.
+
 ## [2026.10.2] - 2026-10-23
 
 ### Bridge

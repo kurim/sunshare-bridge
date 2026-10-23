@@ -182,6 +182,8 @@ export const en: Messages = {
   "field.ENERGY_POLL_INTERVAL.help": "How often the bridge fetches the cumulative PV yield (today/total) from the Sunshare cloud. Not the grid meter – that reports at its own pace. Applies without a restart",
   "field.CLOUD_POLL_INTERVAL": "Live poll interval (cloud)",
   "field.CLOUD_POLL_INTERVAL.help": "Cloud mode only (DATA_SOURCE=cloud): how often the live power values are fetched. In LAN mode the device pushes them itself. Applies without a restart",
+  "field.CONTROL_DEADBAND_W": "Deadband",
+  "field.CONTROL_DEADBAND_W.help": "How far the meter may stray from the target before the controller corrects – wider means fewer writes; above the target, the controller lets export up to the difference through",
   "field.CONTROL_METER_MAX_AGE": "Meter freshness",
   "field.CONTROL_METER_MAX_AGE.help": "How old the last meter sample may get before the controller's failsafe and the display drop it – depends on how often your own meter reports",
   "field.CONTROL_FALLBACK_W": "Failsafe output",
