@@ -13,6 +13,8 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Forma
   (höchstens alle 20 s, Debug-Eintrag „ohne Zählerwert reduziert“).
 - Sicherheitsupdates im Frontend-Build (`npm audit fix`): Vite 8.3.x und `source-map-js` (betrifft nur Dev-Server/Build,
   nicht die ausgelieferte App).
+- Basis-Images angehoben: `python:3.15-slim` (vorher 3.12) und `node:24-alpine` (LTS, vorher 22, mit den
+  Node-Sicherheitsupdates vom Oktober 2026); CI nutzt dieselben Versionen.
 
 ## [2026.10.1] - 2026-10-18
 
