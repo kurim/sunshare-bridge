@@ -11,6 +11,8 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Forma
   zum nächsten Zählerwert und der Akku deckte die Lücke (gemeldet: PV 163 W, Ausgang 217 W, Akku entlädt 54 W bei
   16 %). Jetzt prüft jeder neue PV-Messwert die Grenze des Batterie-Plans und senkt einen zu hohen Ausgang sofort
   (höchstens alle 20 s, Debug-Eintrag „ohne Zählerwert reduziert“).
+- Sicherheitsupdates im Frontend-Build (`npm audit fix`): Vite 8.3.x und `source-map-js` (betrifft nur Dev-Server/Build,
+  nicht die ausgelieferte App).
 
 ## [2026.10.1] - 2026-10-18
 
