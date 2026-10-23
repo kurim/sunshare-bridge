@@ -48,6 +48,7 @@ EN: dict[str, str] = {
     "why.control": "meter {meter} W, inverter {inv} W, limit {cap} W",
     "why.control_fast": "meter {meter} W, inverter {inv} W, limit {cap} W – reduced without waiting for the interval",
     "why.failsafe": "meter value stale, failsafe",
+    "why.pv_drop": "PV {pv} W below the output, limit {cap} W – reduced without waiting for the meter",
     # device limits (main account)
     "dev.guest": "Guest account: NIGHT_MIN_SOC is enforced by the bridge",
     "dev.unreadable": "Device limits not readable",

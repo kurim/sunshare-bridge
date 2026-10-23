@@ -3,6 +3,15 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [2026.10.2] - 2026-10-23
+
+### Bridge
+
+- Regler: Fällt die PV-Leistung zwischen zwei Zählerwerten unter den gesetzten Ausgang, hielt das Gerät den Wert bis
+  zum nächsten Zählerwert und der Akku deckte die Lücke (gemeldet: PV 163 W, Ausgang 217 W, Akku entlädt 54 W bei
+  16 %). Jetzt prüft jeder neue PV-Messwert die Grenze des Batterie-Plans und senkt einen zu hohen Ausgang sofort
+  (höchstens alle 20 s, Debug-Eintrag „ohne Zählerwert reduziert“).
+
 ## [2026.10.1] - 2026-10-18
 
 ### Bridge
