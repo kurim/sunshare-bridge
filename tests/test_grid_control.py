@@ -5,7 +5,7 @@ from unittest import mock
 import pytest
 
 import app.state as st
-from app.grid_control import REDUCE_LOCKOUT_S, GridController, _in_window, _parse_hm
+from app.grid_control import PV_DROP_LOCKOUT_S, GridController, _in_window, _parse_hm
 from app.messages import Msg, MsgError
 
 
@@ -1167,7 +1167,18 @@ def test_pv_drop_leaves_a_covered_output_and_a_fresh_write_alone(monkeypatch):
     assert client.outputs == before
     c2, _ = _pv_drop_controller(client, monkeypatch, pv=163)
     before = list(client.outputs)
-    c2._last_write_t = noon - REDUCE_LOCKOUT_S + 1  # the last write may still be taking effect
+    c2._last_write_t = noon - PV_DROP_LOCKOUT_S + 1  # written a moment ago: not hammered on every push
     with mock.patch("time.time", return_value=noon):
         asyncio.run(c2._pv_drop())
     assert client.outputs == before and c.setpoint == 217 and c2.setpoint == 217
+
+
+def test_pv_drop_is_not_held_back_by_a_meter_step_that_just_raised_the_output(monkeypatch):
+    """Field report 23.10.: a meter step raised the output to ~270 W at PV 277 W; the PV kept falling to 151 W
+    and the 20 s reduce lockout kept this check off while the battery discharged up to 116 W."""
+    client = RecordingClient()
+    c, noon = _pv_drop_controller(client, monkeypatch, pv=182, setpoint=270)
+    c._last_write_t = noon - 10  # the raise went out 10 s ago
+    with mock.patch("time.time", return_value=noon):
+        asyncio.run(c._pv_drop())
+    assert c.setpoint < 182

@@ -3,6 +3,14 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [2026.10.3] - 2026-10-23
+
+### Bridge
+
+- Regler: Die Prüfung bei jedem PV-Messwert (2026.10.2) wartete nach einem Schreibzugriff noch 20 s. Hatte der Regler
+  den Ausgang kurz zuvor bei fallender PV angehoben, entlud der Akku in dieser Zeit (gemeldet: bis 116 W über etwa
+  20 s). Jetzt greift sie schon beim nächsten PV-Messwert, etwa 3 s später (im Trockenlauf weiter 20 s).
+
 ## [2026.10.2] - 2026-10-23
 
 ### Bridge
