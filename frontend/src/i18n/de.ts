@@ -184,6 +184,8 @@ export const de = {
   "field.CLOUD_POLL_INTERVAL.help": "Nur im Cloud-Modus (DATA_SOURCE=cloud): wie oft die Live-Leistungen geholt werden. Im LAN-Modus pusht das Gerät selbst. Gilt ohne Neustart",
   "field.CONTROL_DEADBAND_W": "Totband",
   "field.CONTROL_DEADBAND_W.help": "So weit darf der Zähler vom Zielwert abweichen, ohne dass der Regler nachstellt – größer heißt weniger Schreibzugriffe; liegt es über dem Zielwert, lässt der Regler bis zur Differenz Einspeisung zu",
+  "field.CONTROL_MIN_INTERVAL": "Regel-Takt",
+  "field.CONTROL_MIN_INTERVAL.help": "Mindestabstand zwischen zwei Schreibzugriffen – mindestens so lang wie die Melde-Verzögerung deines Zählers, sonst schaukelt sich die Regelung auf; Reduzieren wartet nicht",
   "field.CONTROL_METER_MAX_AGE": "Zähler-Frische",
   "field.CONTROL_METER_MAX_AGE.help": "So alt darf der letzte Zählerwert höchstens sein, bevor Regler-Notabschaltung und Anzeige ihn verwerfen – je nachdem, wie oft dein Zähler meldet",
   "field.CONTROL_FALLBACK_W": "Failsafe-Ausgabe",

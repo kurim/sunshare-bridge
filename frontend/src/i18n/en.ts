@@ -184,6 +184,8 @@ export const en: Messages = {
   "field.CLOUD_POLL_INTERVAL.help": "Cloud mode only (DATA_SOURCE=cloud): how often the live power values are fetched. In LAN mode the device pushes them itself. Applies without a restart",
   "field.CONTROL_DEADBAND_W": "Deadband",
   "field.CONTROL_DEADBAND_W.help": "How far the meter may stray from the target before the controller corrects – wider means fewer writes; above the target, the controller lets export up to the difference through",
+  "field.CONTROL_MIN_INTERVAL": "Control interval",
+  "field.CONTROL_MIN_INTERVAL.help": "Minimum time between two writes – at least your meter's reporting delay, otherwise the loop winds itself up; reducing does not wait",
   "field.CONTROL_METER_MAX_AGE": "Meter freshness",
   "field.CONTROL_METER_MAX_AGE.help": "How old the last meter sample may get before the controller's failsafe and the display drop it – depends on how often your own meter reports",
   "field.CONTROL_FALLBACK_W": "Failsafe output",
