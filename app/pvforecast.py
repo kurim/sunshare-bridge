@@ -4,9 +4,12 @@ it never touches the battery plan or writes anything to the device. Off entirely
 PVNODE_API_KEY and PVNODE_SITE_ID are both set (the site - roof surfaces, tilt, power - is set up
 at pvnode.com/sites), same convention as the weather forecast ("not configured -> stays idle").
 
-The free pvnode plan allows only a few hundred requests a month, so the last answer is cached in
-/data: a restart (or a crash loop) does not ask again before the poll interval is over, and the
-dashboard always reads the cached curve - "remaining today" is computed from it on every request.
+The free pvnode plan allows only 250 requests a month, so the last answer is cached in /data: a
+restart (or a crash loop) does not ask again before the next request is due, and the dashboard always
+reads the cached curve - "remaining today" is computed from it on every request. Every request sent
+(failed ones too) is counted per month in the same file; the requests left are spread over the rest
+of the month, so a too short PVNODE_POLL_INTERVAL slows down instead of using up the quota in days,
+and once the limit is reached (or pvnode answers 429) the bridge waits for the next month.
 """
 from __future__ import annotations
 
@@ -14,7 +17,7 @@ import asyncio
 import json
 import logging
 import time
-from datetime import date, datetime, timedelta, tzinfo
+from datetime import date, datetime, timedelta, timezone, tzinfo
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -35,6 +38,8 @@ _NETWORK_ERRORS = (aiohttp.ClientError, asyncio.TimeoutError)
 MIN_POLL_S = 600  # the plans allow at most one update per 10 minutes
 DEFAULT_POLL_S = 21600  # 4 requests a day, ~120 a month: fits every plan
 RETRY_S = 1800  # after a failed request (network, server error) - not after a rejected key or limit
+DEFAULT_MONTHLY_LIMIT = 250  # the free plan; paid plans set PVNODE_MONTHLY_LIMIT
+RESET_GRACE_S = 3600  # after the month starts, before asking again: pvnode's reset time is not documented
 DEFAULT_STEP_S = 900
 
 _TIME_KEYS = ("timestamp", "time", "dtm", "datetime")
@@ -99,6 +104,7 @@ class PvForecastClient:
     def __init__(
         self, session: aiohttp.ClientSession | None, api_key: str | None, site_id: str | None,
         poll_interval: float = DEFAULT_POLL_S, cache_file: Path | None = None,
+        monthly_limit: int = DEFAULT_MONTHLY_LIMIT,
     ) -> None:
         self._session = session
         self._api_key = api_key
@@ -110,18 +116,25 @@ class PvForecastClient:
         self.timezone: str | None = None
         self.updated_at: float | None = None
         self.error: Msg | None = None
+        self.monthly_limit = max(int(monthly_limit), 1)
+        self._month = ""  # "YYYY-MM" (UTC) that _used counts for
+        self._used = 0
         self._next_at = 0.0
         if self.available:
             self._load_cache()
-            if self.updated_at is not None:
-                self._next_at = self.updated_at + self.interval
 
     # ---- cache -------------------------------------------------------------------------------
     def _load_cache(self) -> None:
         try:
             saved = json.loads(self._cache_file.read_text())
-            series = [(float(t), float(w)) for t, w in saved["series"]]
-            self.series, self.timezone, self.updated_at = series, saved.get("timezone"), float(saved["updated_at"])
+            self.series = [(float(t), float(w)) for t, w in saved.get("series", [])]
+            self.timezone = saved.get("timezone")
+            self.updated_at = None if saved.get("updated_at") is None else float(saved["updated_at"])
+            self._month, self._used = str(saved.get("month", "")), int(saved.get("used", 0))
+            if saved.get("next_at") is not None:
+                self._next_at = float(saved["next_at"])
+            elif self.updated_at is not None:  # cache from before the request counter
+                self._next_at = self.updated_at + self.interval
         except FileNotFoundError:
             pass
         except (OSError, ValueError, KeyError, TypeError):
@@ -130,15 +143,27 @@ class PvForecastClient:
     def _save_cache(self) -> None:
         try:
             tmp = self._cache_file.with_suffix(".tmp")
-            tmp.write_text(json.dumps({"updated_at": self.updated_at, "timezone": self.timezone, "series": self.series}))
+            tmp.write_text(json.dumps({
+                "updated_at": self.updated_at, "timezone": self.timezone, "series": self.series,
+                "month": self._month, "used": self._used, "next_at": self._next_at,
+            }))
             tmp.replace(self._cache_file)
         except OSError:
             _LOGGER.warning("Could not write the forecast cache %s (is /data writable?)", self._cache_file)
 
     # ---- polling -----------------------------------------------------------------------------
+    def _schedule(self, now: float, wait_s: float) -> None:
+        """Next request after wait_s, but no sooner than the requests left allow until the month ends."""
+        moment = datetime.fromtimestamp(now, timezone.utc)
+        month_end = datetime(moment.year + moment.month // 12, moment.month % 12 + 1, 1, tzinfo=timezone.utc).timestamp()
+        left = self.monthly_limit - self._used
+        pace = (month_end - now) / left if left > 0 else month_end - now + RESET_GRACE_S
+        self._next_at = now + max(wait_s, pace)
+        self._save_cache()
+
     def _fail(self, msg: Msg, retry_s: float) -> None:
         self.error = msg
-        self._next_at = time.time() + retry_s
+        self._schedule(time.time(), retry_s)
         _LOGGER.warning("%s", msg)
 
     async def poll(self, force: bool = False) -> None:
@@ -148,6 +173,10 @@ class PvForecastClient:
         now = time.time()
         if not force and now < self._next_at:
             return
+        month = datetime.fromtimestamp(now, timezone.utc).strftime("%Y-%m")
+        if month != self._month:
+            self._month, self._used = month, 0
+        self._used += 1  # counted before sending: pvnode counts a request even if the answer never arrives
         try:
             async with self._session.get(
                 FORECAST_URL.format(site_id=quote(str(self._site_id), safe="")),
@@ -167,6 +196,7 @@ class PvForecastClient:
             self._fail(Msg("pvf.auth", "error", status=status), self.interval)
             return
         if status == 429:
+            self._used = self.monthly_limit  # pvnode says the quota is gone: wait for the next month
             self._fail(Msg("pvf.rate_limit", "warn"), self.interval)
             return
         if status != 200:
@@ -187,8 +217,7 @@ class PvForecastClient:
         kept = [p for p in self.series if _day_start(today, zone) <= p[0] < first]
         self.series, self.timezone = kept + series, tz_name
         self.updated_at, self.error = now, None
-        self._next_at = now + self.interval
-        self._save_cache()
+        self._schedule(now, self.interval)
 
     def days(self) -> dict[str, tuple[float, list[list[int]]]]:
         """The curve split into local days (forecast's timezone): {"YYYY-MM-DD": (kWh, [[epoch s, W], ...])},

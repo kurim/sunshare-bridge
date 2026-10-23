@@ -10,6 +10,17 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Forma
 - Regler: Die Prüfung bei jedem PV-Messwert (2026.10.2) wartete nach einem Schreibzugriff noch 20 s. Hatte der Regler
   den Ausgang kurz zuvor bei fallender PV angehoben, entlud der Akku in dieser Zeit (gemeldet: bis 116 W über etwa
   20 s). Jetzt greift sie schon beim nächsten PV-Messwert, etwa 3 s später (im Trockenlauf weiter 20 s).
+- Regler: Das Totband (`CONTROL_DEADBAND_W`, wie weit der Zähler vom Zielwert abweichen darf, ohne dass nachgestellt
+  wird) ist jetzt im UI unter den Einstellungen änderbar (5-100 W, Standard weiterhin 25 W bzw. der Wert aus
+  `.env`/Add-on-Option) und wird wie die übrigen Einstellungen in `data/settings.db` gespeichert.
+- Einstellungen: Der Regel-Takt (`CONTROL_MIN_INTERVAL`, 60-120 s) war zwar im Backend änderbar, fehlte aber im
+  Formular – jetzt steht er dort.
+- pvnode: Die Bridge zählt ihre Anfragen pro Monat (auch fehlgeschlagene, gespeichert in `/data/pvforecast.json`) und
+  hält das Monatslimit ein, neu `PVNODE_MONTHLY_LIMIT` (Default 250 = kostenloser Tarif). Die verbleibenden Anfragen
+  werden über den Rest des Monats verteilt: ein zu kurzes `PVNODE_POLL_INTERVAL` bremst sich selbst, statt das
+  Kontingent in wenigen Tagen zu verbrauchen. Ist das Limit erreicht oder antwortet pvnode mit 429, fragt die Bridge
+  erst im nächsten Monat wieder (bis dahin bleibt die letzte Prognose stehen). Ein Neustart nach einer
+  fehlgeschlagenen Anfrage fragt nicht sofort neu.
 
 ## [2026.10.2] - 2026-10-23
 

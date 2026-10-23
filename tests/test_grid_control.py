@@ -124,6 +124,15 @@ def test_control_min_interval_is_bounded_to_the_meter_delay_window():
     assert c.min_interval_s == 90
 
 
+def test_deadband_is_editable_and_bounded():
+    c = _controller()
+    assert c.settings()["CONTROL_DEADBAND_W"] == 25
+    with pytest.raises(ValueError):
+        asyncio.run(c.configure(settings={"CONTROL_DEADBAND_W": 500}))
+    asyncio.run(c.configure(settings={"CONTROL_DEADBAND_W": 40}))
+    assert c.deadband_w == 40
+
+
 def test_cover_load_defaults_off_and_persists(isolated_data):
     c = _controller()
     assert c.cover_load is False

@@ -132,6 +132,9 @@ PLAN_SETTINGS: dict[str, tuple[str, str, float, float]] = {
     # How long a meter sample stays valid (failsafe trigger and the UI's "still fresh?" cutoff);
     # depends on how often the user's own meter reports, so it isn't a fixed default for everyone.
     "CONTROL_METER_MAX_AGE": ("meter_max_age_s", "float", 5, 3600),
+    # Meter error (around CONTROL_TARGET_W) the controller leaves alone; wider = fewer writes, but a
+    # value above CONTROL_TARGET_W lets that much export through before it reacts.
+    "CONTROL_DEADBAND_W": ("deadband_w", "float", 5, 100),
     # Minimum time between writes. Bounded to the meter's own reporting lag (most HA grid-meter
     # integrations report once every 60-120s): reacting faster just means steering on a sample
     # that hasn't caught up with the last write yet, which winds the loop up instead of damping it.

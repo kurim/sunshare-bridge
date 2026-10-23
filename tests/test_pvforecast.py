@@ -206,7 +206,8 @@ def test_earlier_hours_of_today_survive_a_later_answer(tmp_path):
     (429, "pvf.rate_limit", "interval"), (500, "pvf.http", "retry"),
 ])
 def test_http_errors_are_reported_and_keep_the_last_forecast(tmp_path, status, key, retry):
-    c = _client(tmp_path, FakeSession({}, status=status), poll_interval=21600)
+    # a quota large enough that pacing does not stretch the retry
+    c = _client(tmp_path, FakeSession({}, status=status), poll_interval=21600, monthly_limit=10**6)
     c.series = [(_ts(1, 12), 500.0)]
     before = time.time()
     asyncio.run(c.poll())
@@ -254,3 +255,45 @@ def test_days_split_the_curve_by_local_day(tmp_path):
     assert sorted(days) == ["2026-06-01", "2026-06-02"]
     kwh, series = days["2026-06-01"]
     assert kwh == 8.0 and len(series) == 96 and series[0] == [int(_ts(1, 0)), 0]
+
+
+def _ok_session():
+    return FakeSession(_body([{"timestamp": "2026-06-01T12:00:00", "pv_power": 1}]))
+
+
+def test_requests_are_spread_over_the_rest_of_the_month(tmp_path):
+    c = _client(tmp_path, _ok_session(), poll_interval=600, monthly_limit=250)
+    before = time.time()
+    asyncio.run(c.poll())
+    left = pvforecast.datetime.fromtimestamp(before, pvforecast.timezone.utc)
+    month_end = datetime(left.year + left.month // 12, left.month % 12 + 1, 1, tzinfo=ZoneInfo("UTC")).timestamp()
+    assert c._used == 1
+    assert c._next_at - before >= (month_end - before) / 249 - 5  # not every 10 minutes
+
+
+def test_the_limit_waits_for_the_next_month_and_survives_a_restart(tmp_path):
+    session = _ok_session()
+    c = _client(tmp_path, session, monthly_limit=3)
+    for _ in range(5):
+        c._next_at = 0  # pretend the interval is over
+        asyncio.run(c.poll())
+    assert c._used == 5 and len(session.calls) == 5  # a forced-due poll still asks, but the schedule ...
+    c = _client(tmp_path, session, monthly_limit=3)
+    assert c._used == 5 and c._next_at > time.time() + pvforecast.RESET_GRACE_S - 5  # ... waits past the month
+
+
+def test_429_uses_up_the_quota_and_a_new_month_resets_the_counter(tmp_path):
+    c = _client(tmp_path, FakeSession({}, status=429))
+    asyncio.run(c.poll())
+    assert c._used == c.monthly_limit and c._next_at > time.time() + pvforecast.RESET_GRACE_S - 5
+    c._month, c._next_at, c._session = "2000-01", 0, _ok_session()
+    asyncio.run(c.poll())
+    assert c._used == 1 and c.error is None
+
+
+def test_a_failed_request_is_counted_and_not_repeated_after_a_restart(tmp_path):
+    asyncio.run(_client(tmp_path, FakeSession(asyncio.TimeoutError())).poll())
+    session = _ok_session()
+    c = _client(tmp_path, session)
+    asyncio.run(c.poll())
+    assert c._used == 1 and session.calls == []
