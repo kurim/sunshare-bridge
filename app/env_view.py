@@ -43,6 +43,7 @@ _GROUPS: list[tuple[str, str, list[tuple[str, str | None]]]] = [
     ]),
     ("pvforecast", "PV yield forecast (pvnode)", [
         ("PVNODE_API_KEY", None), ("PVNODE_SITE_ID", None), ("PVNODE_POLL_INTERVAL", "21600"),
+        ("PVNODE_MONTHLY_LIMIT", "250"),
     ]),
 ]
 
