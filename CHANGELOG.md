@@ -3,6 +3,13 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [2026.10.4] - 2026-10-27
+
+### Bridge
+
+- Einstellungen: Der Regel-Takt (`CONTROL_MIN_INTERVAL`) lässt sich jetzt auf 1-120 s stellen (bisher 60-120 s). Ein
+  Wert wie 45 s aus `.env`/Add-on-Option wird im Formular nicht mehr als ungültig abgelehnt. Standard weiterhin 60 s.
+
 ## [2026.10.3] - 2026-10-23
 
 ### Bridge

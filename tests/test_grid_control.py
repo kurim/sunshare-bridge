@@ -115,13 +115,15 @@ def test_manually_editing_the_reserve_resets_the_auto_raise_baseline(isolated_da
     assert c.charge_reserve_w == 300 and c._reserve_base_w == 300
 
 
-def test_control_min_interval_is_bounded_to_the_meter_delay_window():
+def test_control_min_interval_is_bounded_to_1_to_120s():
     c = _controller()
-    assert c.settings()["CONTROL_MIN_INTERVAL"] == 60  # default: low end of the 60-120s window
-    with pytest.raises(ValueError):
-        asyncio.run(c.configure(settings={"CONTROL_MIN_INTERVAL": 30}))  # faster than any real meter delay
-    asyncio.run(c.configure(settings={"CONTROL_MIN_INTERVAL": 90}))
-    assert c.min_interval_s == 90
+    assert c.settings()["CONTROL_MIN_INTERVAL"] == 60  # default
+    for bad in (0.5, 121):
+        with pytest.raises(ValueError):
+            asyncio.run(c.configure(settings={"CONTROL_MIN_INTERVAL": bad}))
+    for ok in (1, 45, 120):
+        asyncio.run(c.configure(settings={"CONTROL_MIN_INTERVAL": ok}))
+        assert c.min_interval_s == ok
 
 
 def test_deadband_is_editable_and_bounded():

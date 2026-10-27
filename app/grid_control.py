@@ -135,10 +135,11 @@ PLAN_SETTINGS: dict[str, tuple[str, str, float, float]] = {
     # Meter error (around CONTROL_TARGET_W) the controller leaves alone; wider = fewer writes, but a
     # value above CONTROL_TARGET_W lets that much export through before it reacts.
     "CONTROL_DEADBAND_W": ("deadband_w", "float", 5, 100),
-    # Minimum time between writes. Bounded to the meter's own reporting lag (most HA grid-meter
+    # Minimum time between writes. Should cover the meter's own reporting lag (many HA grid-meter
     # integrations report once every 60-120s): reacting faster just means steering on a sample
     # that hasn't caught up with the last write yet, which winds the loop up instead of damping it.
-    "CONTROL_MIN_INTERVAL": ("min_interval_s", "float", 60, 120),
+    # Faster meters exist, so the user may go down to 1s.
+    "CONTROL_MIN_INTERVAL": ("min_interval_s", "float", 1, 120),
     # Ceiling for the output while the meter is stale (see _failsafe): 0 is only ever "safe" for a
     # house with no baseline load of its own. Still subject to the battery plan's phase cap (PV
     # minus charge reserve by day, the night SOC floor/ceiling) when the plan is on - a fixed value
@@ -186,8 +187,7 @@ class GridController:
         self.gain_base = float(env("CONTROL_GAIN", "0.7"))  # the user's own configured value; see _adapt_gain
         self.min_w = int(env("CONTROL_MIN_W", "0"))
         self.max_w = int(env("CONTROL_MAX_W", "800"))
-        # Default at the low end of the meter-delay window (see CONTROL_MIN_INTERVAL in PLAN_SETTINGS);
-        # a user whose meter reports slower can raise it in the UI, up to that window's other end.
+        # Default at the low end of the typical meter-delay window (see CONTROL_MIN_INTERVAL in PLAN_SETTINGS).
         self.min_interval_s = float(env("CONTROL_MIN_INTERVAL", "60"))
         self.meter_max_age_s = float(env("CONTROL_METER_MAX_AGE", "180"))
         self.fallback_w = int(env("CONTROL_FALLBACK_W", "0"))
