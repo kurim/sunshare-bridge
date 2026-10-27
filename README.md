@@ -255,10 +255,10 @@ dass der Zähler ~0 W zeigt. Er ist **aus und im Trockenlauf**, bis du ihn im UI
    schneller nach: um den Bezug, höchstens einmal pro Minute – sonst würde ein einzelner großer Ausreißer (z. B. der
    Ausgang springt nach einer Änderung in der App) die PV stundenlang zurückhalten. Im Debug-Log als Eintrag
    „Exportschutz-Anhebung zurückgenommen“.
-6. **Regel-Takt (`CONTROL_MIN_INTERVAL`, im UI einstellbar, 60-120 s):** Mindestabstand zwischen zwei Schreibzugriffen.
-   Er ist an die typische Melde-Verzögerung von Netzzählern (60-120 s) gebunden, damit der Regler nie auf einen
+6. **Regel-Takt (`CONTROL_MIN_INTERVAL`, im UI einstellbar, 1-120 s):** Mindestabstand zwischen zwei Schreibzugriffen.
+   Er sollte mindestens die Melde-Verzögerung deines Netzzählers abdecken (typisch 60-120 s), damit der Regler nie auf einen
    Messwert reagiert, der den letzten eigenen Schreibzugriff noch gar nicht widerspiegelt – das würde die Regelung
-   aufschaukeln statt sie zu dämpfen. Kein eigener Wert bekannt → der niedrigste zulässige Wert (60 s) wird verwendet.
+   aufschaukeln statt sie zu dämpfen. Kein eigener Wert bekannt → 60 s.
    **Reduzieren wartet nicht:** Liegt der Ausgang über dem, was das Haus zieht (Zähler unter dem Zielwert, z. B. weil ein
    großer Verbraucher ausgegangen ist), geht die Korrektur schon 20 s nach der letzten Schreibung raus – sofern seither
    ein neuer Zähler-Wert eingetroffen ist, denn ein älterer kann die Schreibung noch nicht zeigen. Erhöhen bleibt beim
@@ -349,7 +349,7 @@ Alles über `.env` (Vorlage: [`.env.example`](.env.example)). Wichtigste Variabl
 | `RAW_LOG_SIZE` | Größe des Roh-Log-Puffers (Default 500) |
 | `METER_CONFIG_TOPIC` / `METER_STATE_TOPIC` / `METER_VALUE_PATH` | Netzzähler für den Regler |
 | `CONTROL_*` | Regelparameter (Ziel, Totband, Verstärkung, Grenzen, Failsafe) |
-| Batterie-Plan (`BATTERY_CAPACITY_WH`, `CHARGE_*`, `NIGHT_*`), `CONTROL_DEADBAND_W` (Totband, 5-100 W), `CONTROL_MIN_INTERVAL` (Regel-Takt, 60-120 s), `CONTROL_METER_MAX_AGE` (Zähler-Frische) und `CONTROL_FALLBACK_W` (Failsafe-Ausgabe) | Defaults, im UI überschreibbar |
+| Batterie-Plan (`BATTERY_CAPACITY_WH`, `CHARGE_*`, `NIGHT_*`), `CONTROL_DEADBAND_W` (Totband, 5-100 W), `CONTROL_MIN_INTERVAL` (Regel-Takt, 1-120 s), `CONTROL_METER_MAX_AGE` (Zähler-Frische) und `CONTROL_FALLBACK_W` (Failsafe-Ausgabe) | Defaults, im UI überschreibbar |
 | `OWM_API_KEY`, `OWM_LAT`, `OWM_LON` | Optionale Wetter-Prognose (siehe oben); leer = Kachel bleibt weg |
 | `WEATHER_POLL_INTERVAL` | Abfrage-Intervall der Wetter-Prognose (Default 1800 s) |
 | `PVNODE_API_KEY`, `PVNODE_SITE_ID` | Optionale PV-Ertragsprognose von pvnode (siehe oben); leer = Karte bleibt weg |

@@ -67,7 +67,7 @@ def test_setting_a_value_back_to_the_default_hands_it_back_to_the_env(monkeypatc
 
 def test_one_invalid_stored_value_does_not_cost_the_others():
     SettingsDB().save({
-        "setting.CONTROL_MIN_INTERVAL": 5,  # below the allowed 60-120 s
+        "setting.CONTROL_MIN_INTERVAL": 0.5,  # below the allowed 1-120 s
         "setting.NIGHT_MAX_W": 180,
         "setting.CHARGE_FULL_SOC": 100,
         "setting.CHARGE_RELEASE_SOC": 98,  # only valid together with the full value above

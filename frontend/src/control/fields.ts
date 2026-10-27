@@ -22,7 +22,7 @@ export const FIELDS: Field[] = [
   { key: "NIGHT_MAX_W", unit: "W", kind: "number", min: 0, max: 2000, step: 10 },
   { key: "NIGHT_MIN_SOC", unit: "%", kind: "range", min: 0, max: 100, step: 1 },
   { key: "CONTROL_DEADBAND_W", unit: "W", kind: "number", min: 5, max: 100, step: 1 },
-  { key: "CONTROL_MIN_INTERVAL", unit: "s", kind: "number", min: 60, max: 120, step: 5 },
+  { key: "CONTROL_MIN_INTERVAL", unit: "s", kind: "number", min: 1, max: 120, step: 1 },
   { key: "CONTROL_METER_MAX_AGE", unit: "s", kind: "number", min: 5, max: 3600, step: 5 },
   { key: "CONTROL_FALLBACK_W", unit: "W", kind: "number", min: 0, max: 2000, step: 10 },
   { key: "ENERGY_POLL_INTERVAL", unit: "s", kind: "number", min: 5, max: 3600, step: 5 },
