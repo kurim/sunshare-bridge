@@ -226,7 +226,9 @@ dass der Zähler ~0 W zeigt. Er ist **aus und im Trockenlauf**, bis du ihn im UI
 3. **Batterie-Plan** (optional): tagsüber lädt die Batterie mit einer Reserve (`CHARGE_RESERVE_W`; ist „Netzlast
    abdecken“ an, ruht sie, siehe Punkt 4) bis `CHARGE_FULL_SOC`, danach wird PV durchgereicht – bis auf `CHARGE_TRICKLE_W` (Default 5 W), die auch bei vollem
    Akku für ihn zurückbleiben, damit der Standby-Verbrauch des Geräts ihn nicht bis zum nächsten Morgen leerzieht;
-   nachts wird bis `NIGHT_MAX_W` abgegeben, solange der SOC über `NIGHT_MIN_SOC` liegt. Der Tages-Deckel wird aus dem
+   nachts wird bis `NIGHT_MAX_W` abgegeben, solange der SOC über `NIGHT_MIN_SOC` liegt. Fällt der SOC auf oder unter
+   `NIGHT_MIN_SOC` (Tiefentladeschutz), gibt der Regler auch tagsüber nichts ab: Die PV lädt dann erst den Akku, bis er
+   wieder darüber liegt. Der Tages-Deckel wird aus dem
    niedrigsten PV-Wert der letzten 20 s berechnet, nicht aus dem aktuellen – so schlägt
    ein kurzer PV-Einbruch zwischen zwei Schreibvorgängen nicht als Akku-Entladung durch. „PV“ ist dabei das Angebot:
    die echte PV-Leistung (`pvPreal`, bei der Cloud PV1 + PV2, sonst `pvPow`) – nicht der gebuchte Wert `pvPow`, der bei

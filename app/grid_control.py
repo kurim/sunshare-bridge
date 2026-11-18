@@ -779,6 +779,11 @@ class GridController:
         night = self._night_cap(soc, now)
         if night is not None:
             return night
+        if soc <= self.night_min_soc:
+            # Deep-discharge protection also by day: all PV goes into the battery until it is back above
+            # NIGHT_MIN_SOC. Always the bridge's own value - the device's `socMin` (main account) only stops
+            # discharging, it doesn't route the PV into the battery.
+            return Msg("phase.day_recharge", soc=_n(soc), min=_n(self.night_min_soc)), 0
         pv = self._pv_floor(pv, now)
         if soc >= self.full_soc:
             self._battery_full = True
