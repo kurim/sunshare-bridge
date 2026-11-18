@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen an diesem Projekt werden hier festgehalten. Format angelehnt an
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 
+## [2026.11.0] - 2026-11-18
+
+### Bridge
+
+- Tiefentladeschutz gilt jetzt auch tagsüber: Liegt der SOC bei oder unter `NIGHT_MIN_SOC`, setzt der Batterie-Plan
+  die Abgabe auf 0 W, damit die gesamte PV erst den Akku lädt, bis er wieder über dem Wert liegt (neue Phase „Tag:
+  SOC … – keine Abgabe, PV lädt erst den Akku“). Bisher griff der Schutz nur nachts; tagsüber ging die PV bei
+  leerem Akku weiter an den Ausgang, mit „Netzlast abdecken“ sogar vollständig. Gilt auch mit dem Haupt-Account:
+  Der Entladestopp im Gerät (`socMin`) verhindert nur das Entladen, lenkt die PV aber nicht in den Akku.
+
 ## [2026.10.4] - 2026-10-27
 
 ### Bridge

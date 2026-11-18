@@ -99,7 +99,9 @@ Beobachtungen aus Mitschnitten (26 min, ~100–140 W PV):
   änderbar. Als Gast (Default) gilt das Folgende unverändert. Die App-Route ist für den Gast-Account nicht geprüft.
 - **`NIGHT_MIN_SOC` ist im Gast-Modus reine Bridge-Logik** und geht nie an Cloud oder Gerät. Der Regler (`grid_control._plan_cap`)
   setzt nachts bei `soc <= NIGHT_MIN_SOC` nur die **Ziel-Ausgangsleistung auf 0 W** (`updateEmsParaById`,
-  `permPower`). Eine geräteseitige Entladegrenze wird dabei nicht verändert. Der Schutz gilt also nur, solange der
+  `permPower`). Tagsüber gilt dasselbe (Phase `phase.day_recharge`), unabhängig vom Account: Bei 0 W Abgabe lädt die
+  gesamte PV den Akku, bis der SOC wieder über `NIGHT_MIN_SOC` liegt. Ein Geräte-`socMin` stoppt nur das Entladen und
+  leitet die PV sonst weiter an den Ausgang. Eine geräteseitige Entladegrenze wird dabei nicht verändert. Der Schutz gilt also nur, solange der
   Regler läuft (aktiviert, kein Trockenlauf, frischer Zählerwert) und schreiben kann.
 - Die Geräte-Einstellung „Batteriesettings“ der App liegt in der Antwort von `queryMesSettingUpdate` unter
   `emsModeAdvan` (am eigenen Gerät bestätigt): `socMin` = Entladestopp (20), `socMax` = Ladestopp (100),

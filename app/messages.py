@@ -23,6 +23,7 @@ EN: dict[str, str] = {
     "phase.schedule_off": "Schedule off – plain zero feed-in",
     "phase.night_min": "Night: SOC {soc} % ≤ {min} % – no output",
     "phase.night_out": "Night: output up to {w} W (SOC {soc} %)",
+    "phase.day_recharge": "Day: SOC {soc} % ≤ {min} % – no output, PV recharges the battery",
     "phase.day_full": "Day: battery full ({soc} %) – PV pass-through, {trickle} W kept back for the battery",
     "phase.day_charging": "Day: battery charging (reserve {reserve} W, SOC {soc} %)",
     "phase.day_cover_load": "Day: covering grid load (charge reserve rests), PV surplus → battery (export guard {guard} W, SOC {soc} %)",

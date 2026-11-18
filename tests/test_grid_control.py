@@ -1152,8 +1152,8 @@ def _pv_drop_controller(client, monkeypatch, pv, setpoint=217):
     c = _ctl(client)
     asyncio.run(c.configure(enabled=True, dry_run=False))
     c.setpoint = setpoint
-    _, noon = _day(soc=16, pv=pv)
-    monkeypatch.setattr(st.STATE, "latest", {"soc": 16, "pvPreal": pv, "invPow": setpoint, "_power_t": noon})
+    _, noon = _day(soc=40, pv=pv)
+    monkeypatch.setattr(st.STATE, "latest", {"soc": 40, "pvPreal": pv, "invPow": setpoint, "_power_t": noon})
     monkeypatch.setattr(st.STATE, "_pv_samples", deque([(noon, pv)]))
     return c, noon
 
@@ -1193,3 +1193,17 @@ def test_pv_drop_is_not_held_back_by_a_meter_step_that_just_raised_the_output(mo
     with mock.patch("time.time", return_value=noon):
         asyncio.run(c._pv_drop())
     assert c.setpoint < 182
+
+
+@pytest.mark.parametrize("guest", [True, False])
+def test_low_soc_sends_all_pv_into_the_battery_by_day_until_back_above_the_floor(guest):
+    """Below NIGHT_MIN_SOC the PV first recharges the battery, also in the cover-load phase and on the main
+    account (the device's own `socMin` only stops discharging, it doesn't route the PV into the battery)."""
+    c = _ctl(FakeClient(guest=guest))
+    c.cover_load = True
+    c._device_soc_ok = True
+    latest, noon = _day(soc=25, pv=600)
+    phase, cap = c._plan_cap(latest, noon)
+    assert (phase.key, phase.params, cap) == ("phase.day_recharge", {"soc": 25, "min": 25}, 0)
+    latest, noon = _day(soc=26, pv=600)
+    assert c._plan_cap(latest, noon)[0].key == "phase.day_cover_load"
